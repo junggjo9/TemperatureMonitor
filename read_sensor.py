@@ -299,5 +299,5 @@ if __name__ =="__main__":
 
     for device in devices:
         device.load_local_db(args.dbFolder)
-        if device.fetch_from_cloud(cloud) >0 or True:
+        if device.fetch_from_cloud(cloud) >0:
             device.update_db()
