@@ -131,7 +131,7 @@ class DeviceData(object):
                     self._append_point(d_type = key,
                                        time_stamp = time_stamp,
                                        value = value)
-    
+
     def _append_point(self, 
                       d_type:str, 
                       time_stamp: int,
@@ -162,7 +162,7 @@ class DeviceData(object):
             self.__time_first = data_time
         self.__empty = False
         return True
-        
+
     #### Query the data from the online logs
     def fetch_from_cloud(self, cloud_stream):
         print ("Device {dev_name} has data from {start} until {end}".format(
@@ -173,7 +173,7 @@ class DeviceData(object):
         ### If no data is present we need to download the entire log stream
         is_empty = self.empty
         iter = 0
-        
+
         downloaded = 0
         #### Start first with the most recent data
         while iter < 50:
@@ -205,7 +205,7 @@ class DeviceData(object):
         start_timestamp = int(start_time.timestamp())
         end_timestamp = int(end_time.timestamp())
         result = cloud.getdevicelog(self.tuya_id, start_timestamp, end_timestamp, size=1000)
-        
+ 
         if not result["success"] == True:
             print(f"Failed to retrieve data from cloud")
             exit(1)
@@ -225,18 +225,18 @@ class DeviceData(object):
             if self._append_point(d_type, d_time, d_value):
                added+=1
         return added
-    
+
     def update_db(self):
         if len(self.__db_file) == 0:
             print(f"No external database defined to store data of {self.name}")
             return
         persitify = {}
         persitify["data"] = {}
-         
+
         for d_type, payload in self.__data.items():
             persitify["data"][d_type] = [ (time_stamp, value) for time_stamp, value in payload]
             persitify["data"][d_type].sort(key = lambda x: x[0])
-        
+
         persitify["data_types"] = {}
         for x in range(len(self.data_fields)):
             persitify["data_types"][x] = self.data_fields[x].json_dict
@@ -299,5 +299,5 @@ if __name__ =="__main__":
 
     for device in devices:
         device.load_local_db(args.dbFolder)
-        if device.fetch_from_cloud(cloud) >0:
+        if device.fetch_from_cloud(cloud) >0 or True:
             device.update_db()

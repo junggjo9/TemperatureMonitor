@@ -4,7 +4,7 @@ cd /home/user/TemperatureMonitoring/
 python read_sensor.py
 
 #### Update the data records
-cp  /var/www/html/temperature_flat/* /home/user/TemperatureMonitoring/data_records/
+cp  /var/www/html/temperature_flat/*.json /home/user/TemperatureMonitoring/data_records/
 
 now=`date`
 #### Push to git
