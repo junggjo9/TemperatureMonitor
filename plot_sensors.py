@@ -4,14 +4,33 @@ from read_sensor import DeviceData, setupArgParser, loadSensorsFromJSON
 from datetime import datetime, timedelta
 
 
+
+def fillAuxiliaryPoints(time_series:list, max_interval:int = 10) :
+    series_copy = [ p for p in time_series]
+    max_dt = timedelta(minutes = max_interval)
+    from copy import deepcopy
+    before = len(time_series)
+    for p in range(1, before):
+        prev_time = time_series[p-1]
+        now_time = time_series[p]
+        ### If the two data points are close by don't do anything
+        while (now_time[0] - prev_time[0]) > max_dt:
+            new_time = [x for x in prev_time]
+            new_time[0] = new_time[0] + max_dt
+            series_copy.append(tuple(x for x in new_time))
+            prev_time = new_time
+    series_copy.sort(key=lambda x: x[0])
+    return series_copy
+
+
 def getMean24Hours(device, variable, scale_factor):
     mean = 0.
     now = datetime.now()
     yesterday = now - timedelta(days=1)
 
-    time_series = dev.data_payload(d_type,
-                                   earliest = yesterday,
-                                   latest = now)
+    time_series = fillAuxiliaryPoints(dev.data_payload(d_type,
+                                                       earliest = yesterday,
+                                                       latest = now))
     interval = time_series[-1][0].timestamp() - time_series[0][0].timestamp()
     x = [t.timestamp() for t, _ in time_series]
     y = [scale_factor*x  for _, x in time_series]
@@ -43,7 +62,7 @@ if __name__== "__main__":
             if d_type.name != f"va_{args.curve}":
                 continue
             unit = d_type.unit
-            time_series = dev.data_payload(d_type)
+            time_series = fillAuxiliaryPoints(dev.data_payload(d_type))
             x = [t for t, _ in time_series] + [datetime.now()]
             y = [scale_factor*x  for _, x in time_series]
             y.append(y[-1])
