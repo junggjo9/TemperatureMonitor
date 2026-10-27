@@ -178,7 +178,7 @@ class DeviceData(object):
         #### Start first with the most recent data
         while iter < 50:
             fetched = self._download_data(cloud_stream = cloud_stream, 
-                                          start_time = self.latest_data, 
+                                          start_time = self.latest_data - timedelta(minutes=1), 
                                           end_time = datetime.now())
             downloaded +=fetched
             if fetched == 0: break
@@ -190,7 +190,7 @@ class DeviceData(object):
         while iter < 100:
             fetched = self._download_data(cloud_stream = cloud_stream, 
                                           start_time = datetime.fromtimestamp(0), 
-                                          end_time = self.earliest_data)
+                                          end_time = self.earliest_data  + timedelta(minutes=1))
             downloaded +=fetched
             if fetched == 0: break
             ++iter
