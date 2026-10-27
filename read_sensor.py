@@ -18,11 +18,27 @@ class DataFormat(object):
         self.__unit =  d_range["unit"] if "unit" in d_range.keys() else "Undefined"
         self.__allowed = d_range["range"] if "range" in d_range.keys() else []
     @property
+    def minimum(self): return self.__min
+    @property 
+    def maximum(self): return self.__max
+    @property
     def name(self): return self.__name
     @property 
     def unit(self): return self.__unit
     @property
     def data_type(self): return self.__data_type
+    @property 
+    def json_dict(self): 
+        result = {
+            "code": self.name,
+            "type": self.data_type,
+            "values": {
+                "min": self.minimum,
+                "max": self.maximum,
+                "unit": self.unit,
+            }
+        }
+        return result
 
 ### Basic class to describe a temperature sensor device
 class DeviceData(object):
@@ -219,6 +235,11 @@ class DeviceData(object):
          
         for d_type, payload in self.__data.items():
             persitify["data"][d_type] = [ (time_stamp, value) for time_stamp, value in payload]
+            persitify["data"][d_type].sort(key = lambda x: x[0])
+        
+        persitify["data_types"] = {}
+        for x in range(len(self.data_fields)):
+            persitify["data_types"][x] = self.data_fields[x].json_dict
         persitify["name"] = self.name
         # persitify["tuya_id"] = self.tuya_id
         persitify["mac_address"] = self.mac_address
