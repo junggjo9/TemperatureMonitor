@@ -5,3 +5,6 @@ python read_sensor.py
 
 python plot_sensors.py --curve humidity
 python plot_sensors.py --curve temperature
+
+### Temporarily add the git fetch
+git pull
