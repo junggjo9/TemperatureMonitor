@@ -146,9 +146,9 @@ if __name__== "__main__":
         y = [x  for _, x,__ in time_series]
         e = [e  for _,__, e in time_series]
 	### Define the legend
-        ax.errorbar(x, y, yerr=e, fmt="^", label="{name} room".format(name = dev))
+        ax.errorbar(x, y, yerr=e, xerr=timedelta(hours=12), fmt="^", markersize=10, label="{name} room".format(name = dev))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-    ax.set_title(f"{args.curve} evolution in G503 - Daily average")
+    ax.set_title(f"{args.curve} evolution in G503 - Daily average last update {now.strftime('%d.%m.%y %H:%M')}")
     ax.set_xlabel("time")
     ax.set_ylabel(f"{args.curve} [{unit}]")
     ax.legend()  
