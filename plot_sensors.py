@@ -37,7 +37,7 @@ def calcMeanObservable(time_series):
     from scipy import integrate
     from math import sqrt
     mean = integrate.trapezoid(y, x=x) / interval
-    return mean, sqrt(integrate.trapezoid( [ (v-mean)**2 for v in y], x=x)) / interval 
+    return mean, sqrt(integrate.trapezoid( [ v**2 for v in y], x=x)/ interval -mean**2) 
 
 def findField(device, variable_name):
     for field in device.data_fields:
@@ -122,7 +122,7 @@ if __name__== "__main__":
                                                                                   mean=mean,
                                                                                   unit=d_field.unit))
            
-            day_average[dev.name].append((start_day, mean, stdDev))
+            day_average[dev.name].append((start_day.replace(hour=12), mean, stdDev))
 
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
         ax.set_title(f"{args.curve} evolution in G503 - Record: {start_day.strftime('%d.%m.%y')}")
@@ -143,15 +143,15 @@ if __name__== "__main__":
 
     for dev, time_series in day_average.items():
         x = [t for t, _ ,__ in time_series]
-        y = [x  for _,__, x in time_series]
+        y = [x  for _, x,__ in time_series]
         e = [e  for _,__, e in time_series]
 	### Define the legend
-        ax.errorbar(x, y, e, label="{name} room".format(name = dev))
+        ax.errorbar(x, y, yerr=e, fmt="^", label="{name} room".format(name = dev))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     ax.set_title(f"{args.curve} evolution in G503 - Daily average")
     ax.set_xlabel("time")
     ax.set_ylabel(f"{args.curve} [{unit}]")
-    ax.legend()  # Zeigt die Legende für die verschiedenen Kurven an
+    ax.legend()  
     ax.grid(True)
 
     plt.tight_layout()
