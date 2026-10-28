@@ -27,7 +27,7 @@ def getMean24Hours(device,
                    variable, 
                    scale_factor,
                    now= datetime.now()):
-    return calcMeanObservable(fillAuxiliaryPoints(dev.data_payload(d_type,
+    return calcMeanObservable(fillAuxiliaryPoints(device.data_payload(variable,
                                                        earliest = now - timedelta(days=1),
                                                        latest = now,
                                                        calibrator= lambda x: scale_factor * x)))
@@ -66,13 +66,15 @@ if __name__== "__main__":
     start_day = None
 
     for dev in devices:
+        dev.load_local_db(args.dbFolder)
+
+
         if not start_day or dev.first_record_time.timestamp() < start_day.timestamp():
             start_day = dev.first_record_time
-        dev.load_local_db(args.dbFolder)
-        
+      
         d_field = findField(dev, args.curve)
         if not d_field: continue
-        unit = d_type.unit
+        unit = d_field.unit
         time_series = fillAuxiliaryPoints(dev.data_payload(d_field, calibrator = lambda x: scale_factor*x))
         x = [t for t, _ in time_series]
         y = [x  for _, x in time_series]
@@ -95,26 +97,23 @@ if __name__== "__main__":
     plt.close(fig)
 
     ### Next plot curves per date
-    start_day = datetime.fromisoformat(start.strftime("%d.%m.%y 00:00:01"))
-    end_day = datetime.fromisoformat(now.strftime("%d.%m.%y 23:59:59"))
-    print ("Temperatur record ranges from {start_day} to {end_day}")
+    start_day = start_day.replace(hour=0, minute=0, second =1, microsecond=0)
+    end_day = now.replace(hour=23, minute=59, second=59, microsecond=99)
+    print (f"Temperatur record ranges from {start_day.strftime('%d.%m.%y')} to {end_day.strftime('%d.%m.%y')}")
     day_average = {}
-
+    for dev in devices: day_average[dev.name]= [] 
     ### Create the daily average
     while start_day < end_day:
         fig, ax = plt.subplots(figsize=(10, 6))
         for dev in devices:
             d_field = findField(dev, args.curve)
             if not d_field: continue
-            time_series = fillAuxiliaryPoints(dev.data_payload(d_type, 
+            time_series = fillAuxiliaryPoints(dev.data_payload(d_field, 
                                               earliest = start_day,
                                               latest = start_day + timedelta(days=1),
                                               calibrator = lambda x: scale_factor*x))
 
             mean = calcMeanObservable(time_series)
-            if not dev.name in day_average.keys():
-                day_average[dev.name] = []
-
             x = [t for t, _ in time_series]
             y = [x  for _, x in time_series]
             ### Define the legend
@@ -122,7 +121,7 @@ if __name__== "__main__":
                                                                                   mean=mean,
                                                                                   unit=d_field.unit))
            
-            day_average[dev.name].append(start_day, mean)
+            day_average[dev.name].append((start_day, mean))
 
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
         ax.set_title(f"{args.curve} evolution in G503 - Record: {start_day.strftime('%d.%m.%y')}")
@@ -137,12 +136,16 @@ if __name__== "__main__":
         plt.savefig(f"{figure_name}.pdf", dpi=300)
         plt.close(fig)
 
-        start_day = end_day + timedelta(days=1)
+        start_day = start_day + timedelta(days=1)
     ##### Last but not least create the daily summary plot
+    fig, ax = plt.subplots(figsize=(10, 6))
+
     for dev, time_series in day_average.items():
         x = [t for t, _ in time_series]
         y = [x  for _, x in time_series]
-        ### Define the legend
+        print (dev, x, y)
+        
+	### Define the legend
         ax.plot(x, y, label="{name} room".format(name = dev))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     ax.set_title(f"{args.curve} evolution in G503 - Daily average")
