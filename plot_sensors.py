@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 def fillAuxiliaryPoints(time_series:list, max_interval:int = 10) :
     series_copy = [ p for p in time_series]
     max_dt = timedelta(minutes = max_interval)
-    from copy import deepcopy
     before = len(time_series)
     for p in range(1, before):
         prev_time = time_series[p-1]
@@ -30,13 +29,15 @@ def getMean24Hours(device,
     return calcMeanObservable(fillAuxiliaryPoints(device.data_payload(variable,
                                                        earliest = now - timedelta(days=1),
                                                        latest = now,
-                                                       calibrator= lambda x: scale_factor * x)))
+                                                       calibrator= lambda x: scale_factor * x)))[0]
 def calcMeanObservable(time_series):
     interval = time_series[-1][0].timestamp() - time_series[0][0].timestamp()
     x = [t.timestamp() for t, _ in time_series]
     y = [x  for _, x in time_series]
     from scipy import integrate
-    return integrate.trapezoid(y, x=x) / interval
+    from math import sqrt
+    mean = integrate.trapezoid(y, x=x) / interval
+    return mean, sqrt(integrate.trapezoid( [ (v-mean)**2 for v in y], x=x)) / interval 
 
 def findField(device, variable_name):
     for field in device.data_fields:
@@ -113,7 +114,7 @@ if __name__== "__main__":
                                               latest = start_day + timedelta(days=1),
                                               calibrator = lambda x: scale_factor*x))
 
-            mean = calcMeanObservable(time_series)
+            mean, stdDev = calcMeanObservable(time_series)
             x = [t for t, _ in time_series]
             y = [x  for _, x in time_series]
             ### Define the legend
@@ -121,7 +122,7 @@ if __name__== "__main__":
                                                                                   mean=mean,
                                                                                   unit=d_field.unit))
            
-            day_average[dev.name].append((start_day, mean))
+            day_average[dev.name].append((start_day, mean, stdDev))
 
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
         ax.set_title(f"{args.curve} evolution in G503 - Record: {start_day.strftime('%d.%m.%y')}")
@@ -141,12 +142,11 @@ if __name__== "__main__":
     fig, ax = plt.subplots(figsize=(10, 6))
 
     for dev, time_series in day_average.items():
-        x = [t for t, _ in time_series]
-        y = [x  for _, x in time_series]
-        print (dev, x, y)
-        
+        x = [t for t, _ ,__ in time_series]
+        y = [x  for _,__, x in time_series]
+        e = [e  for _,__, e in time_series]
 	### Define the legend
-        ax.plot(x, y, label="{name} room".format(name = dev))
+        ax.errorbar(x, y, e, label="{name} room".format(name = dev))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     ax.set_title(f"{args.curve} evolution in G503 - Daily average")
     ax.set_xlabel("time")
