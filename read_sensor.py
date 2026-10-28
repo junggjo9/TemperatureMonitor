@@ -100,20 +100,28 @@ class DeviceData(object):
     @property
     def serial_number(self): return self.__serial_number
     @property
-    def earliest_data(self): return self.__time_first
+    def first_record_time(self): return self.__time_first
     @property
-    def latest_data(self): return self.__time_last
+    def latest_record_time(self): return self.__time_last
     @property
     def data_fields(self): return self.__data_types
-
+    #### Return the data payload for a field read by the sensor
+    #### @param field: The field to be returned
+    #### @param ealiest: The first data point should not been recorded before
+    #### @param latest: The last data point shoud not have been recorded after
+    #### @param calibrator: Optional calibrator to apply 
     def data_payload(self, 
                      field: DataFormat,
                      earliest = datetime.fromtimestamp(0),
-                     latest = datetime.now()):
+                     latest = datetime.now(),
+                     calibrator = None):
         if len([0 for x in self.data_fields if field.name == x.name]) == 0:
-            print(f"Data field {field} unknown")
+            print(f"Data field {field} is unknown")
             return []
-        values = [ (datetime.fromtimestamp(stamp / 1000), value) for stamp, value in self.__data[field.name]
+        if not calibrator:
+            calibrator = lambda x: x
+        values = [ (datetime.fromtimestamp(stamp / 1000), calibrator(value)) \
+                    for stamp, value in self.__data[field.name]
                 if stamp >= earliest.timestamp() * 1000 and stamp <= latest.timestamp() * 1000]
         values.sort(key=lambda x: x[0].timestamp())
         return values
@@ -167,8 +175,8 @@ class DeviceData(object):
     def fetch_from_cloud(self, cloud_stream):
         print ("Device {dev_name} has data from {start} until {end}".format(
             dev_name = self.name, 
-            start = self.earliest_data.strftime('%d.%m.%y %H:%M'),
-            end = self.latest_data.strftime('%d.%m.%y %H:%M')))
+            start = self.first_record_time.strftime('%d.%m.%y %H:%M'),
+            end = self.latest_record_time.strftime('%d.%m.%y %H:%M')))
 
         ### If no data is present we need to download the entire log stream
         is_empty = self.empty
@@ -178,7 +186,7 @@ class DeviceData(object):
         #### Start first with the most recent data
         while iter < 50:
             fetched = self._download_data(cloud_stream = cloud_stream, 
-                                          start_time = self.latest_data - timedelta(minutes=1), 
+                                          start_time = self.latest_record_time - timedelta(minutes=1), 
                                           end_time = datetime.now())
             downloaded +=fetched
             if fetched == 0: break
@@ -190,7 +198,7 @@ class DeviceData(object):
         while iter < 100:
             fetched = self._download_data(cloud_stream = cloud_stream, 
                                           start_time = datetime.fromtimestamp(0), 
-                                          end_time = self.earliest_data  + timedelta(minutes=1))
+                                          end_time = self.first_record_time  + timedelta(minutes=1))
             downloaded +=fetched
             if fetched == 0: break
             ++iter
