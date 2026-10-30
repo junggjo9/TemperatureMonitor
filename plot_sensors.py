@@ -81,7 +81,7 @@ if __name__== "__main__":
         y = [x  for _, x in time_series]
         ### Define the legend
         mean, stdDev = getMean24Hours(dev, d_field, scale_factor)
-        ax.plot(x, y, label="{name} room (Average last 24h: {mean:.1f} \pm {stdDev:.1f} {unit})".format(name = dev.name,
+        ax.plot(x, y, label="{name} room (Average last 24h: {mean:.1f} $\pm$ {stdDev:.1f} {unit})".format(name = dev.name,
                         mean=mean, stdDev=stdDev, unit=d_field.unit))
 
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m - %H:%M'))
