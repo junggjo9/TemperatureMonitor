@@ -1,9 +1,6 @@
 #/env/python
-
 from read_sensor import DeviceData, setupArgParser, loadSensorsFromJSON
 from datetime import datetime, timedelta
-
-
 
 def fillAuxiliaryPoints(time_series:list, max_interval:int = 10) :
     series_copy = [ p for p in time_series]
