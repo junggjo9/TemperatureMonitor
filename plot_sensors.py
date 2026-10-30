@@ -24,12 +24,12 @@ def fillAuxiliaryPoints(time_series:list, max_interval:int = 10) :
 
 def getMean24Hours(device, 
                    variable, 
-                   scale_factor,
-                   now= datetime.now()):
+                   scale_factor):
+    now = datetime.now()
     return calcMeanObservable(fillAuxiliaryPoints(device.data_payload(variable,
                                                        earliest = now - timedelta(days=1),
                                                        latest = now,
-                                                       calibrator= lambda x: scale_factor * x)))[0]
+                                                       calibrator= lambda x: scale_factor * x)))
 def calcMeanObservable(time_series):
     interval = time_series[-1][0].timestamp() - time_series[0][0].timestamp()
     x = [t.timestamp() for t, _ in time_series]
@@ -80,9 +80,9 @@ if __name__== "__main__":
         x = [t for t, _ in time_series]
         y = [x  for _, x in time_series]
         ### Define the legend
-        ax.plot(x, y, label="{name} room (Average last 24h: {mean:.1f} {unit})".format(name = dev.name,
-                        mean=getMean24Hours(dev, d_field, scale_factor),
-                        unit=d_field.unit))
+        mean, stdDev = getMean24Hours(dev, d_field, scale_factor)
+        ax.plot(x, y, label="{name} room (Average last 24h: {mean:.1f} \pm {stdDev:.1f} {unit})".format(name = dev.name,
+                        mean=mean, stdDev=stdDev, unit=d_field.unit))
 
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m - %H:%M'))
     fig.autofmt_xdate()  
@@ -118,9 +118,8 @@ if __name__== "__main__":
             x = [t for t, _ in time_series]
             y = [x  for _, x in time_series]
             ### Define the legend
-            ax.plot(x, y, label="{name} room (Average: {mean:.1f} {unit})".format(name = dev.name,
-                                                                                  mean=mean,
-                                                                                  unit=d_field.unit))
+            ax.plot(x, y, label="{name} room (Average: {mean:.1f} $\pm$ {stdDev:.1f} {unit})".format(
+                    name = dev.name, mean=mean, stdDev = stdDev, unit=d_field.unit))
            
             day_average[dev.name].append((start_day.replace(hour=12), mean, stdDev))
 
