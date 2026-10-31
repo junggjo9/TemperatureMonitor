@@ -2,6 +2,8 @@
 from enum import Enum
 from os.path import exists
 import sqlite3
+import logging
+logging.basicConfig(format='%(levelname)s : %(message)s', level=logging.INFO)
 
 
 
@@ -17,6 +19,8 @@ class ColumnDef(object):
     ## @param type: The data type of the column
     ## @param primary: Is the column the primary column identifiying a record
     ## @param notNull: Is the column allowed to be filled without value
+    ## @param ref_table: Establish a refernce to another table (together ith ref_column)
+    ## @param ref_column: Etablish a reference to the column from an other table
     def __init__(self, name: str, 
                        d_type: DataTypes,
                        primary:bool = False, 
@@ -101,7 +105,8 @@ class Database(object):
             ColumnDef(name="product_name", d_type = DataTypes.TEXT_TYPE, notNull=True),
             ColumnDef(name="uuid", d_type = DataTypes.TEXT_TYPE, notNull=True),
             ColumnDef(name="icon", d_type = DataTypes.TEXT_TYPE, notNull=False) ])
-        #### Table to store the variables held
+        #### Table to store the variables held by a sensor
+        #### id: The number of the entry within the table
         #### name: Name of the variable 
         #### type: Data type of the variable
         #### unit: In which units is the variable given
@@ -118,6 +123,12 @@ class Database(object):
             ColumnDef(name="values", d_type = DataTypes.TEXT_TYPE, notNull= False)])
         #### Actual data held by the device
         # data_records - id, record_type, sensor_id, value, record_time, insert_time
+        ### id: The number of the entry within the table
+        ### record_type: The identifier to the type of record
+        ### sensor_id: The identifier of the sensor that has stored the datapoint
+        ### value: The recorded value of the data point
+        ### record_time: The time stamp when the data point has been recorded
+        ### insert_time: The time stamp when the data point has been put into the table
         self.sqlDB.createTable("data_records",
                     [ColumnDef(name="id", d_type = DataTypes.INT_TYPE, primary=True),
                     ColumnDef(name="record_type", d_type = DataTypes.INT_TYPE, notNull=True,
@@ -127,6 +138,16 @@ class Database(object):
                     ColumnDef(name="value", d_type = DataTypes.REAL, notNull=True),
                     ColumnDef(name="record_time", d_type = DataTypes.INT, notNull=True),
                     ColumnDef(name="insert_time", d_type = DataTypes.INT, notNull=True)])
-
+        ####  Reference table to which record types are storeable by a given sensor
+        #### id: The number of the entry within the table
+        ### record_type: The identifier to the type of record
+        ### sensor_id: The identifier of the sensor that has stored the datapoint
+        self.sqlDB.createTable("sensor_variables",
+                    [ColumnDef(name="id", d_type = DataTypes.INT_TYPE, primary=True),
+                     ColumnDef(name="record_type", d_type = DataTypes.INT_TYPE, notNull=True,
+                               ref_table="record_types", ref_column="id"),
+                     ColumnDef(name="sensor_id", d_type = DataTypes.INT_TYPE, notNull=True,
+                               ref_table="sensors", ref_column="id")])
+        
 if __name__ == "__main__":
     test_db = Database("test.db")
