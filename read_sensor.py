@@ -266,7 +266,7 @@ def loadSensorsFromJSON(json_config):
                                     id = entry["id"],
                                     mac = entry["mac"],
                                     uuid = entry["uuid"],
-                                    sn = entry["sn"],
+                                    sn = "",# entry["sn"],
                                     prod_name = entry["product_name"],
                                     icon = entry["icon"],
                                     mapping_data = entry["mapping"])
