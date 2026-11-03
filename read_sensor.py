@@ -262,7 +262,7 @@ def loadSensorsFromJSON(json_config):
     devices = []
     with open('devices.json', 'r') as f:
          for entry in json.load(f):
-            print("Instantiate new device {entry['name']}")
+            print(f"Instantiate new device {entry['name']}")
             newDevice = DeviceData( name = entry["name"],
                                     id = entry["id"],
                                     mac = entry["mac"],
