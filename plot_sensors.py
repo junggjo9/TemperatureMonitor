@@ -113,7 +113,7 @@ if __name__== "__main__":
                                               earliest = start_day,
                                               latest = start_day + timedelta(days=1),
                                               calibrator = lambda x: scale_factor*x))
-
+            if len(time_series) == 0: continue
             mean, stdDev = calcMeanObservable(time_series)
             x = [t for t, _ in time_series]
             y = [x  for _, x in time_series]
