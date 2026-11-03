@@ -263,6 +263,7 @@ def loadSensorsFromJSON(json_config):
     with open('devices.json', 'r') as f:
          for entry in json.load(f):
             print(f"Instantiate new device {entry['name']}")
+            if "Radiator" in entry["name"]: continue
             newDevice = DeviceData( name = entry["name"],
                                     id = entry["id"],
                                     mac = entry["mac"],
