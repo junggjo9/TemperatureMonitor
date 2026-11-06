@@ -88,6 +88,8 @@ class DbConnection(object):
         ### Internal dictionary to cache which tables are held
         self.__tables = {}
 
+    def __del__(self):
+        self.__db.close()
     @property 
     def path(self): return self.__path
     @property
@@ -132,11 +134,10 @@ class DbConnection(object):
         query = "INSERT INTO {tableName} ({cols}) VALUES ({values})".format(tableName=tableName,
                 cols = ", ".join([f"'{c}'" for c in columns]),
                 values=value_str)
-        logging.info(query)
+        logging.debug(query)
         cursor = self.instance.cursor()
         cursor.execute(query)
-        
-
+        self.instance.commit()
 
     #### Fetch entries from the table
     def fetchFromTable(self, tableName:str, 
@@ -145,7 +146,7 @@ class DbConnection(object):
                              order: list =[],
                              limit:int = -1,
                              start: int =0):
-        cols = "*" if len(columnNames) == 0 else ", ".join([f"'{c}'" for c in columnNames])
+        cols = "*" if len(columnNames) == 0 else ", ".join([f"\"{c}\"" for c in columnNames])
         sel = "" if len(conditions)  == 0 else "WHERE {l_cond}".format(
                         l_cond=", ".join([f"{c}" for c in conditions]))
         sort = "" if len(order) == 0 else "ORDER BY {ord_seq}".format(ord_seq = ", ".join([
@@ -154,10 +155,10 @@ class DbConnection(object):
         range_str = "" if limit < 1 else f"LIMIT {start} {limit}"
        
         query = f"SELECT {cols} FROM {tableName} {sel} {sort} {range_str}"
+        logging.info(query)
         cursor = self.instance.cursor()
         cursor.execute(query)
         return cursor.fetchall()
-        #return 
 
 class Database(object):
     def __init__(self, database_path):
@@ -248,7 +249,7 @@ if __name__ == "__main__":
 
     test_injects = ["ship", "heater", "plant", "die CASSY!!!", "TV"]
 
-    records = [(test_injects[i % len(test_injects)], id_generator(12), id_generator(24), "test_device", id_generator(12)) for i in range (10000)]
+    records = [(test_injects[i % len(test_injects)], id_generator(12), id_generator(24), "test_device", id_generator(12)) for i in range (100)]
 
     for i in range(len(records)):
         test_db.sqlDB.insertRecord( "sensors", 
@@ -258,6 +259,17 @@ if __name__ == "__main__":
     fetch_back = test_db.sqlDB.fetchFromTable(tableName = "sensors", 
                                              columnNames = ("device_name", "mac_address", "tuya_id" , "product_name", "uuid"))
 
-    print (f"Fetched datasets {len(fetch_back)}")
+    logging.info(f"Fetched datasets {len(fetch_back)}")
     if len(fetch_back) != len(records):
-        print("DIE CASSY")
+        logging.error("Did no retrieve back the same amount of datasets")
+        exit(1)
+    for i in range(len(fetch_back)):
+        insert_block = records[i]
+        read_block = fetch_back[i]
+        if len(insert_block) != len(read_block):
+            logging.error(f"Retrieved table content has different numb of columns {len(insert_block)} vs. {len(read_block)}.")
+            exit(1)
+        for j in range(len(insert_block)):
+            if insert_block[j] != read_block[j]:
+                logging.error(f"Database content differs {insert_block[j]} vs. {read_block[j]}")
+                exit(1)
