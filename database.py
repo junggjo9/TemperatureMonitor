@@ -5,6 +5,8 @@ import sqlite3, logging, string, random
 logging.basicConfig(format='%(levelname)s : %(message)s', level=logging.INFO)
 
 
+def id_generator(size=45, chars=string.ascii_letters + string.digits):
+    return ''.join(random.choice(chars) for _ in range(size))
 
 class DataTypes(Enum):
     INT_TYPE = 0 #
@@ -87,9 +89,39 @@ class DbConnection(object):
         self.__db = sqlite3.connect(self.__path)
         ### Internal dictionary to cache which tables are held
         self.__tables = {}
+        print(sqlite3.sqlite_version)
+        self._loadTableInfo()
 
     def __del__(self):
         self.__db.close()
+    
+    def _loadTableInfo(self):
+        query = "SELECT name FROM sqlite_master WHERE type ='table' AND name NOT LIKE 'sqlite_%';"
+        logging.debug(f"_loadTableInfo() - Execute query {query}")
+        cursor = self.instance.cursor()
+        cursor.execute(query)
+        #### Load all present tables 
+        for table_row in cursor.fetchall():
+            table_name = table_row[0]
+            logging.debug(f"_loadTableInfo() - Found table {table_name}")
+            self.__tables[table_name] = []
+        #### Now load the columns types
+        for table_name in self.__tables.keys():
+            query = f"SELECT name, type, \"notnull\", pk from pragma_table_info('{table_name}');"
+            logging.debug(f"_loadTableInfo() - Execute query {query}")
+            cursor.execute(query)
+            for column_def in cursor.fetchall():
+                column_name = column_def[0]
+                notNull = column_def[2] != 0
+                primary = column_def[3] != 0
+                d_type  = None
+                if column_def[1] == "INTEGER": d_type = DataTypes.INT_TYPE
+                elif column_def[1] == "REAL": d_type = DataTypes.REAL_TYPE
+                elif column_def[1] == "TEXT": d_type = DataTypes.TEXT_TYPE
+                else: raise RuntimeError(f"Column {column_name} has an unknown data type {column_def[1]}")
+                self.__tables[table_name].append(ColumnDef(name= column_def, d_type = d_type, 
+                                                           primary=primary, notNull = notNull))
+
     @property 
     def path(self): return self.__path
     @property
@@ -102,7 +134,7 @@ class DbConnection(object):
             raise RuntimeError(f"Cannot create the table {tableName} twice in {self.path}")
         query="CREATE TABLE {tableName} ({columns})".format(tableName=tableName,
                     columns=", ".join([f"{c}" for c in columns]))
-        logging.info(query)
+        logging.debug(f"createTable() - Execute {query}")
         self.instance.execute(query)
         self.__tables[tableName] = columns
 
@@ -220,7 +252,8 @@ class Database(object):
             ColumnDef(name="tuya_id", d_type = DataTypes.TEXT_TYPE, notNull=True),
             ColumnDef(name="product_name", d_type = DataTypes.TEXT_TYPE, notNull=True),
             ColumnDef(name="uuid", d_type = DataTypes.TEXT_TYPE, notNull=True),
-            ColumnDef(name="icon", d_type = DataTypes.TEXT_TYPE, notNull=False) ])
+            ColumnDef(name="icon", d_type = DataTypes.TEXT_TYPE, notNull=False),
+            ColumnDef(name="battery_state", d_type = DataTypes.INT_TYPE, notNull = False)])
         #### Table to store the variables held by a sensor
         #### id: The number of the entry within the table
         #### name: Name of the variable 
@@ -279,16 +312,11 @@ class Database(object):
                      ColumnDef(name="sensor_id", d_type = DataTypes.INT_TYPE, notNull=True,
                                ref_table="sensors", ref_column="id")])
 
-
-
-def id_generator(size=45, chars=string.ascii_letters + string.digits):
-    return ''.join(random.choice(chars) for _ in range(size))
-
 if __name__ == "__main__":
     from os import system
-    system("rm test.db")
+    #system("rm test.db")
     test_db = Database("test.db")
-
+    exit(1)
     test_injects = ["ship", "heater", "plant", "die CASSY!!!", "TV"]
 
     records = [(test_injects[i % len(test_injects)], id_generator(12), id_generator(24), "test_device", id_generator(12)) for i in range (100)]
@@ -322,3 +350,5 @@ if __name__ == "__main__":
                                    columns = ["product_name"],
                                    record = [new_devices[i % len(new_devices)]],
                                    entry_id = i+1)
+
+                                   
