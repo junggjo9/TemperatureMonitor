@@ -76,7 +76,7 @@ class QueryOrder(object):
     def order_direction(self) : return self.__order
     def __repr__(self):
         return "{col_name} {direct}".format(col_name=self.column_name,
-                                            direct="ASC" if Order.ASC else "DESC" )
+                                direct="ASC" if self.order_direction == Order.ASC else "DESC" )
 
 
 
@@ -103,29 +103,42 @@ class DbConnection(object):
         query="CREATE TABLE {tableName} ({columns})".format(tableName=tableName,
                     columns=", ".join([f"{c}" for c in columns]))
         logging.info(query)
-        cursor = self.instance.execute(query)
+        self.instance.execute(query)
         self.__tables[tableName] = columns
+
+    def tableInfo(self, tableName: str):
+        if tableName not in self.__tables.keys():
+            raise RuntimeError(f"tableInfo() - The table {tableName} does not exist")
+        return self.__tables[tableName]
+
+    def primaryKey(self, tableName: str):
+        for col in self.tableInfo(tableName):
+            if col.primary: return col
+        raise RuntimeError(f"There is no primary column for table {tableName}")
+
+    def columnDataTypes(self, 
+                        tableName: str, 
+                        columns:tuple):
+        d_types =[] 
+        for col_name in columns:
+            for db_col in self.tableInfo(tableName=tableName):
+                if db_col.column_name == col_name:
+                    d_types.append(db_col.data_type)
+                    break
+        return d_types
 
     def insertRecord(self, 
                      tableName: str, 
                      columns: tuple,
                      record: tuple):
-        if tableName not in self.__tables.keys():
-            raise RuntimeError(f"insertRecord() - The table {tableName} does not exist")
-
         if len(columns) != len(record):
             raise RuntimeError(f"insertRecord() - Inconsistent number of columns ({len(columns)}) and records {len(record)}")
         if len(columns) == 0:
             raise RuntimeError(f"insertRecord() - The number of passed colmuns must not be zero")
-        d_types =[] 
-        for col_name in columns:
-            for db_col in self.__tables[tableName]:
-                if db_col.column_name == col_name:
-                    d_types.append(db_col.data_type)
-                    break
+        d_types = self.columnDataTypes(tableName=tableName, columns=columns)
         if len(d_types) != len(columns):
             raise RuntimeError(f"insertRecord() - At least one column is not part of the table {tableName}")
-        
+
         value_str = ""
         for i in range(len(record)):
             if i > 0: value_str+=", "
@@ -138,27 +151,56 @@ class DbConnection(object):
         cursor = self.instance.cursor()
         cursor.execute(query)
         self.instance.commit()
+        primary = self.primaryKey(tableName)
+        return self.fetchFromTable(tableName = tableName,
+                                   columns = [primary.column_name],
+                                   order = [QueryOrder(name= primary.column_name, order =Order.DESC)],
+                                   limit = 1)[0][0]
 
     #### Fetch entries from the table
     def fetchFromTable(self, tableName:str, 
-                             columnNames:tuple = [],
+                             columns:list = [],
                              conditions: list =[],
                              order: list =[],
                              limit:int = -1,
                              start: int =0):
-        cols = "*" if len(columnNames) == 0 else ", ".join([f"\"{c}\"" for c in columnNames])
+        cols = "*" if len(columns) == 0 else ", ".join([f"\"{c}\"" for c in columns])
         sel = "" if len(conditions)  == 0 else "WHERE {l_cond}".format(
                         l_cond=", ".join([f"{c}" for c in conditions]))
         sort = "" if len(order) == 0 else "ORDER BY {ord_seq}".format(ord_seq = ", ".join([
                 f"{o}" for o in order]))
         
-        range_str = "" if limit < 1 else f"LIMIT {start} {limit}"
+        range_str = "" if limit < 1 else f"LIMIT {start}, {limit}"
        
         query = f"SELECT {cols} FROM {tableName} {sel} {sort} {range_str}"
-        logging.info(query)
+        logging.debug(query)
         cursor = self.instance.cursor()
         cursor.execute(query)
         return cursor.fetchall()
+    #### Update an entry from the table
+    def updateRecord(self, tableName: str,
+                           columns: tuple,
+                           record: tuple,
+                           entry_id):
+        if len(columns) != len(record):
+            raise RuntimeError(f"updateRecord() - Inconsistent number of columns ({len(columns)}) and records {len(record)}")
+        if len(columns) == 0:
+            raise RuntimeError(f"updateRecord() - The number of passed colmuns must not be zero")
+        d_types = self.columnDataTypes(tableName=tableName, columns=columns)
+        if len(d_types) != len(columns):
+            raise RuntimeError(f"updateRecord() - At least one column is not part of the table {tableName}")
+
+        value_str = ""
+        for i in range(len(record)):
+            if i > 0: value_str+=", "
+            value_str+=f"\"{columns[i]}\"="
+            if d_types[i] == DataTypes.TEXT_TYPE: value_str+=f"\"{record[i]}\""
+            else: value_str+=f"{record[i]}"
+
+        query = f"UPDATE {tableName} SET {value_str} WHERE \"{self.primaryKey(tableName).column_name}\"='{entry_id}'"
+        cursor = self.instance.cursor()
+        cursor.execute(query)
+        self.instance.commit()
 
 class Database(object):
     def __init__(self, database_path):
@@ -252,12 +294,12 @@ if __name__ == "__main__":
     records = [(test_injects[i % len(test_injects)], id_generator(12), id_generator(24), "test_device", id_generator(12)) for i in range (100)]
 
     for i in range(len(records)):
-        test_db.sqlDB.insertRecord( "sensors", 
-            ("device_name", "mac_address", "tuya_id" , "product_name", "uuid"), 
-            records[i])
+        test_db.sqlDB.insertRecord(tableName ="sensors", 
+            columns= ("device_name", "mac_address", "tuya_id" , "product_name", "uuid"), 
+            record = records[i])
     
     fetch_back = test_db.sqlDB.fetchFromTable(tableName = "sensors", 
-                                             columnNames = ("device_name", "mac_address", "tuya_id" , "product_name", "uuid"))
+                                              columns = ("device_name", "mac_address", "tuya_id" , "product_name", "uuid"))
 
     logging.info(f"Fetched datasets {len(fetch_back)}")
     if len(fetch_back) != len(records):
@@ -273,3 +315,10 @@ if __name__ == "__main__":
             if insert_block[j] != read_block[j]:
                 logging.error(f"Database content differs {insert_block[j]} vs. {read_block[j]}")
                 exit(1)
+    #### Now we update the product_name to other names
+    new_devices = ["coffee machine", "heater", "green house"]
+    for i in range(len(records)):
+        test_db.sqlDB.updateRecord(tableName="sensors",
+                                   columns = ["product_name"],
+                                   record = [new_devices[i % len(new_devices)]],
+                                   entry_id = i+1)
