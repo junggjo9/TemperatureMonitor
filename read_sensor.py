@@ -13,10 +13,11 @@ class DataFormat(object):
                        d_range: dict):
         self.__name = name
         self.__data_type = d_type
-        self.__min = d_range["min"] if "min" in d_range.keys() else 0
-        self.__max = d_range["max"] if "max" in d_range.keys() else 0
-        self.__unit =  d_range["unit"] if "unit" in d_range.keys() else "Undefined"
-        self.__allowed = d_range["range"] if "range" in d_range.keys() else []
+        
+        self.__min = d_range["min"] if isinstance(d_range, dict) and "min" in d_range.keys() else 0
+        self.__max = d_range["max"] if isinstance(d_range, dict) and "max" in d_range.keys() else 0
+        self.__unit =  d_range["unit"] if isinstance(d_range, dict) and "unit" in d_range.keys() else "Undefined"
+        self.__allowed = d_range["range"] if isinstance(d_range, dict) and "range" in d_range.keys() else []
     @property
     def minimum(self): return self.__min
     @property 
@@ -263,7 +264,6 @@ def loadSensorsFromJSON(json_config):
     with open('devices.json', 'r') as f:
          for entry in json.load(f):
             print(f"Instantiate new device {entry['name']}")
-            if "Radiator" in entry["name"]: continue
             newDevice = DeviceData( name = entry["name"],
                                     id = entry["id"],
                                     mac = entry["mac"],
