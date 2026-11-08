@@ -1,4 +1,5 @@
 #!/bin/bash
+
 source /home/user/TemperatureMonitoring/python_env/bin/activate
 cd /home/user/TemperatureMonitoring/
 python read_sensor.py
@@ -11,7 +12,7 @@ now=`date`
 git pull
 git commit -am "Update of the data records ${now}"
 git push
-
+exit
 python plot_sensors.py --curve humidity
 python plot_sensors.py --curve temperature
 
