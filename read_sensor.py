@@ -1,5 +1,7 @@
 import json
 import os
+from os.path import exists
+from os import system
 from datetime import datetime, timedelta
 from time import sleep
 
@@ -86,6 +88,10 @@ class DeviceData(object):
         ### Empty dataset
         self.__empty = True
 
+        self.__lock_file = ""
+
+    def __del__(self): 
+        if exists(self.__lock_file): system(f"rm {self.__lock_file}")
     @property
     def empty(self): return self.__empty
     @property
@@ -126,14 +132,24 @@ class DeviceData(object):
                 if stamp >= earliest.timestamp() * 1000 and stamp <= latest.timestamp() * 1000]
         values.sort(key=lambda x: x[0].timestamp())
         return values
+    
     ###
-    def load_local_db(self, db_folder):
+    def load_local_db(self, db_folder, time_out: timedelta = timedelta(minutes = 15)):
         ### Check whether a device file is stored in the directory
         self.__db_file = f"{db_folder}/{self.name}.json"
         if not os.path.exists(self.__db_file):
-            print (f"No data has been stored for {self}")
+            print (f"No data has been stored for {self.name}")
             return
 
+        start_time = datetime.now()
+        lock_file = f"{db_folder}/.{self.name}.lock"
+        while exists(lock_file) and len(self.__lock_file) == 0:
+            print(f"Cannot open {self.__db_file} as its still open by another process")
+            sleep(15)
+            if datetime.now() -  time_out > start_time:
+                raise RuntimeError("Time out reached")
+        self.__lock_file = lock_file
+        with open(self.__lock_file, 'w') as f: f.write(self.__db_file) 
         with open(self.__db_file, "r") as f:
             for key, payload in json.load(f)["data"].items():
                 for time_stamp, value in payload:
@@ -180,43 +196,38 @@ class DeviceData(object):
             end = self.latest_record_time.strftime('%d.%m.%y %H:%M')))
 
         ### If no data is present we need to download the entire log stream
-        is_empty = self.empty
-        iter = 0
-
+ 
         downloaded = 0
         #### Start first with the most recent data
-        while iter < 50:
+        end_cursor = datetime.now()
+        start_cursor = datetime.now() - timedelta(days=7)
+ 
+        for iter in range(50):
             fetched = self._download_data(cloud_stream = cloud_stream, 
-                                          start_time = self.latest_record_time - timedelta(minutes=1), 
-                                          end_time = datetime.now())
+                                          start_time = end_cursor - timedelta(days =1), 
+                                          end_time = end_cursor)
             downloaded +=fetched
-            if fetched == 0: break
-            ++iter
-            sleep(5)
+            print (f"Got {fetched} entries from the database")
+
+            end_cursor = end_cursor - timedelta(hours=20)
+
+            if fetched == 0 and end_cursor < start_cursor: 
+                break
+            sleep(5 + (iter*5)%25)
         #### The data has been queried before no need to try again
-        if not is_empty:
-            return downloaded
-        while iter < 100:
-            fetched = self._download_data(cloud_stream = cloud_stream, 
-                                          start_time = datetime.fromtimestamp(0), 
-                                          end_time = self.first_record_time  + timedelta(minutes=1))
-            downloaded +=fetched
-            if fetched == 0: break
-            ++iter
-            sleep(5)
         return downloaded
 
-    def _download_data(self, cloud_stream, start_time, end_time):
+    def _download_data(self, cloud_stream, start_time, end_time, chunk_size = 1000):
 
         print ("Fetch new data from the cloud for sensor {name} for the time span from {start} unil {end}".format(
                 name = self.name, start = start_time.strftime('%d.%m.%y %H:%M'), 
                 end = end_time.strftime('%d.%m.%y %H:%M')))
         start_timestamp = int(start_time.timestamp())
         end_timestamp = int(end_time.timestamp())
-        result = cloud.getdevicelog(self.tuya_id, start_timestamp, end_timestamp, size=1000)
+        result = cloud.getdevicelog(self.tuya_id, start_timestamp, end_timestamp, size=chunk_size)
  
         if not result["success"] == True:
-            print(f"Failed to retrieve data from cloud")
+            print(f"Failed to retrieve data from cloud {result}")
             exit(1)
         logs = result['result']["logs"]
         added = 0
@@ -234,6 +245,7 @@ class DeviceData(object):
             if self._append_point(d_type, d_time, d_value):
                added+=1
         return added
+           
 
     def update_db(self):
         if len(self.__db_file) == 0:

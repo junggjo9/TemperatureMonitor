@@ -7,6 +7,7 @@ python read_sensor.py
 #### Update the data records
 cp  /var/www/html/temperature_flat/*.json /home/user/TemperatureMonitoring/data_records/
 
+#exit
 now=`date`
 #### Push to git
 git pull
