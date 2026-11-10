@@ -1,0 +1,273 @@
+{
+  "data": {
+    "switch_1": [
+      [
+        1793733850606,
+        "false"
+      ],
+      [
+        1793953218232,
+        "false"
+      ],
+      [
+        1793953224740,
+        "true"
+      ]
+    ],
+    "countdown_1": [
+      [
+        1793733850750,
+        0
+      ],
+      [
+        1793953218371,
+        0
+      ]
+    ],
+    "add_ele": [],
+    "cur_current": [
+      [
+        1793733850607,
+        0
+      ],
+      [
+        1793953218263,
+        0
+      ]
+    ],
+    "cur_power": [
+      [
+        1793733850607,
+        0
+      ],
+      [
+        1793953218263,
+        0
+      ]
+    ],
+    "cur_voltage": [
+      [
+        1793733850607,
+        2402
+      ],
+      [
+        1793953218263,
+        0
+      ],
+      [
+        1793953218954,
+        2445
+      ]
+    ],
+    "voltage_coe": [
+      [
+        1793733850643,
+        558
+      ],
+      [
+        1793953218265,
+        558
+      ]
+    ],
+    "electric_coe": [
+      [
+        1793733850643,
+        28083
+      ],
+      [
+        1793953218265,
+        28083
+      ]
+    ],
+    "power_coe": [
+      [
+        1793733850643,
+        15446
+      ],
+      [
+        1793953218265,
+        15446
+      ]
+    ],
+    "electricity_coe": [
+      [
+        1793733850643,
+        2700
+      ],
+      [
+        1793953218265,
+        2700
+      ]
+    ],
+    "fault": [
+      [
+        1793733850641,
+        "0"
+      ],
+      [
+        1793953218264,
+        "0"
+      ]
+    ],
+    "cycle_time": [
+      [
+        1793733850747,
+        ""
+      ],
+      [
+        1793953218370,
+        ""
+      ]
+    ],
+    "random_time": [
+      [
+        1793733850716,
+        ""
+      ],
+      [
+        1793953218369,
+        ""
+      ]
+    ],
+    "relay_status_1": [
+      [
+        1793733850749,
+        "memory"
+      ],
+      [
+        1793953218370,
+        "memory"
+      ]
+    ]
+  },
+  "data_types": {
+    "0": {
+      "code": "switch_1",
+      "type": "Boolean",
+      "values": {
+        "min": 0,
+        "max": 0,
+        "unit": "Undefined"
+      }
+    },
+    "1": {
+      "code": "countdown_1",
+      "type": "Integer",
+      "values": {
+        "min": 0,
+        "max": 86400,
+        "unit": "s"
+      }
+    },
+    "2": {
+      "code": "add_ele",
+      "type": "Integer",
+      "values": {
+        "min": 0,
+        "max": 50000,
+        "unit": "Undefined"
+      }
+    },
+    "3": {
+      "code": "cur_current",
+      "type": "Integer",
+      "values": {
+        "min": 0,
+        "max": 30000,
+        "unit": "mA"
+      }
+    },
+    "4": {
+      "code": "cur_power",
+      "type": "Integer",
+      "values": {
+        "min": 0,
+        "max": 80000,
+        "unit": "W"
+      }
+    },
+    "5": {
+      "code": "cur_voltage",
+      "type": "Integer",
+      "values": {
+        "min": 0,
+        "max": 5000,
+        "unit": "V"
+      }
+    },
+    "6": {
+      "code": "voltage_coe",
+      "type": "Integer",
+      "values": {
+        "min": 0,
+        "max": 1000000,
+        "unit": "Undefined"
+      }
+    },
+    "7": {
+      "code": "electric_coe",
+      "type": "Integer",
+      "values": {
+        "min": 0,
+        "max": 1000000,
+        "unit": "Undefined"
+      }
+    },
+    "8": {
+      "code": "power_coe",
+      "type": "Integer",
+      "values": {
+        "min": 0,
+        "max": 1000000,
+        "unit": "Undefined"
+      }
+    },
+    "9": {
+      "code": "electricity_coe",
+      "type": "Integer",
+      "values": {
+        "min": 0,
+        "max": 1000000,
+        "unit": "Undefined"
+      }
+    },
+    "10": {
+      "code": "fault",
+      "type": "Bitmap",
+      "values": {
+        "min": 0,
+        "max": 0,
+        "unit": "Undefined"
+      }
+    },
+    "11": {
+      "code": "cycle_time",
+      "type": "String",
+      "values": {
+        "min": 0,
+        "max": 0,
+        "unit": "Undefined"
+      }
+    },
+    "12": {
+      "code": "random_time",
+      "type": "String",
+      "values": {
+        "min": 0,
+        "max": 0,
+        "unit": "Undefined"
+      }
+    },
+    "13": {
+      "code": "relay_status_1",
+      "type": "Enum",
+      "values": {
+        "min": 0,
+        "max": 0,
+        "unit": "Undefined"
+      }
+    }
+  },
+  "name": "HeaterFoncia1",
+  "mac_address": "d0:82:eb:bd:54:07"
+}
