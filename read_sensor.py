@@ -224,7 +224,8 @@ class DeviceData(object):
                 end = end_time.strftime('%d.%m.%y %H:%M')))
         start_timestamp = int(start_time.timestamp())
         end_timestamp = int(end_time.timestamp())
-        result = cloud.getdevicelog(self.tuya_id, start_timestamp, end_timestamp, size=chunk_size)
+        result = cloud.getdevicelog(self.tuya_id, start_timestamp, end_timestamp, 
+                                    size=chunk_size, evtype=7)
  
         if not result["success"] == True:
             print(f"Failed to retrieve data from cloud {result}")
