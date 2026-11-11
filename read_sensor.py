@@ -139,7 +139,7 @@ class DeviceData(object):
         self.__db_file = f"{db_folder}/{self.name}.json"
         if not os.path.exists(self.__db_file):
             print (f"No data has been stored for {self.name}")
-            return
+            return 0
 
         start_time = datetime.now()
         lock_file = f"{db_folder}/.{self.name}.lock"
@@ -150,12 +150,14 @@ class DeviceData(object):
                 raise RuntimeError("Time out reached")
         self.__lock_file = lock_file
         with open(self.__lock_file, 'w') as f: f.write(self.__db_file) 
+        loaded = 0
         with open(self.__db_file, "r") as f:
             for key, payload in json.load(f)["data"].items():
                 for time_stamp, value in payload:
-                    self._append_point(d_type = key,
-                                       time_stamp = time_stamp,
-                                       value = value)
+                    loaded+= self._append_point(d_type = key,
+                                                time_stamp = time_stamp,
+                                                value = value)
+        return loaded
 
     def _append_point(self, 
                       d_type:str, 
