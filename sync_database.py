@@ -152,7 +152,7 @@ class SmartHomeDevice(object):
         ### If no data is present we need to download the entire log stream
         downloaded = 0
   
-        start_time = datetime.now() - timedelta(days =7)
+        start_time = datetime.now() - timedelta(days =1)
         #### Start first with the most recent data
         for iter in range(50):
             fetched = self._downloadData(cloud_stream = cloud_stream, 
