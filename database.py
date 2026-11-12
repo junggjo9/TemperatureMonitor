@@ -156,7 +156,8 @@ class Database(object):
                      ColumnDef(name="mean", d_type = DataTypes.REAL_TYPE, notNull = True),
                      ColumnDef(name="stdDev", d_type = DataTypes.REAL_TYPE, notNull = True),
                      ColumnDef(name="date", d_type = DataTypes.REAL_TYPE, notNull = True),
-                     ColumnDef(name="nPoints", d_type = DataTypes.INT_TYPE, notNull = True)])
+                     ColumnDef(name="nPoints", d_type = DataTypes.INT_TYPE, notNull = True),
+                     ColumnDef(name="lastUpdate", d_type = DataTypes.INT_TYPE, notNull = True)])
     
     
     
@@ -216,7 +217,7 @@ class Database(object):
                                                             conditions=[f"\"name\"=\"{variable_name}\"",
                                                                         "\"type\"=\"Integer\""])]
         if len(dev_id) != 1:
-            raise RuntimeError(f"defineConversionFactor() - {variable_name} is either unknown or not an integer")
+            raise RuntimeError(f"defineConversionFactor() - '{variable_name}' is either unknown or not an integer ({len(dev_id)})")
         self.sqlDB.updateRecord(tableName="record_variables",
                                 columns=["conversion"],
                                 record=[conversion],

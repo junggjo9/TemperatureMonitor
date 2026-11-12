@@ -46,6 +46,11 @@ def calcMeanObservable(time_series):
     return mean, sqrt(integrate.trapezoid( [ v**2 for v in y], x=x)/ interval -mean**2) 
 
 
+def summaryUpdateNeeded(start_day, record_id, ignorePastDays = True):
+    now = datetime.now()
+    return not ignorePastDays or len(record_id) == 0 or (now - start_day).days <= 1  or \
+             (datetime.fromtimestamp(record_id[1]) - start_day).days <= 1
+
 def calcDailyAverage(device, field, ignorePastDays = True):
     logging.info(f"calcDailyAverage() - Calculate the {field.name}'s daily average recorded by {device.name}")
     start_day = device.earliestRecord.replace(hour=0, minute=0, second =1, microsecond=0)
@@ -54,12 +59,12 @@ def calcDailyAverage(device, field, ignorePastDays = True):
     while start_day < end_day:
         date = int(start_day.timestamp())
         record_id = [x[0] for x in device.sqlDB.fetchFromTable(tableName="average_values",
-                                    columns=[device.primaryKey("average_values")],
+                                    columns=[device.primaryKey("average_values"), "lastUpdate"],
                                     conditions=[f"device={device.device_id}",
                                                 f"variable={field.id}",
                                                 f"date={date}"])]
                 
-        if len(record_id) > 0 and (now - start_day).days > 1 and ignorePastDays:
+        if not summaryUpdateNeeded(start_day, record_id, ignorePastDays):
             start_day = start_day + timedelta(days=1)
             continue
         
@@ -76,17 +81,13 @@ def calcDailyAverage(device, field, ignorePastDays = True):
         logging.debug(f"Calculated mean {mean} +- {stdDev}")
         if len(record_id) == 0:
             device.sqlDB.insertRecord(tableName="average_values",
-                                       columns=["device", "variable", "mean", "stdDev" , "date" , "nPoints"],
-                                       record=[device.device_id, field.id, mean, stdDev, date, len(record)])
+                                       columns=["device", "variable", "mean", "stdDev" , "date" , "nPoints", "lastUpdate"],
+                                       record=[device.device_id, field.id, mean, stdDev, date, len(record), int(datetime.now().timestamp())])
         else:
             device.sqlDB.updateRecord(tableName="average_values",
-                                       columns=[ "mean", "stdDev" ,"nPoints"],
-                                       record=[mean, stdDev, len(record)],
+                                       columns=[ "mean", "stdDev" ,"nPoints", "lastUpdate"],
+                                       record=[mean, stdDev, len(record), int(datetime.now().timestamp())],
                                        entry_id=record_id[0])
-
-
-## 0.1479 
-## 0.1018 (14h30 - 17) (1h30 - 7)
 
 class CostSlot(object):
     def __init__(self, 
@@ -134,12 +135,12 @@ def calcCosts(device, field, ignorePastDays = True):
         date = int(start_day.timestamp())
 
         record_id = [x[0] for x in device.sqlDB.fetchFromTable(tableName="average_values",
-                                    columns=[device.primaryKey("average_values")],
+                                    columns=[device.primaryKey("average_values"), "lastUpdate"],
                                     conditions=[f"device={device.device_id}",
                                                 f"variable={field.id}",
                                                 f"date={date}"])]
                 
-        if len(record_id) > 0 and (now - start_day).days > 1 and ignorePastDays:
+        if not summaryUpdateNeeded(start_day, record_id, ignorePastDays):
             start_day = start_day + timedelta(days=1)
             continue
 
@@ -166,13 +167,14 @@ def calcCosts(device, field, ignorePastDays = True):
 
         if len(record_id) == 0:
             device.sqlDB.insertRecord(tableName="average_values",
-                                       columns=["device", "variable", "mean", "stdDev" , "date" , "nPoints"],
-                                       record=[device.device_id, field.id, consumption, costs, date, len(record)])
+                                       columns=["device", "variable", "mean", "stdDev" , "date" , "nPoints", "lastUpdate"],
+                                       record=[device.device_id, field.id, consumption, costs, date, len(record), int(datetime.now().timestamp())])
         else:
             device.sqlDB.updateRecord(tableName="average_values",
-                                       columns=[ "mean", "stdDev" ,"nPoints"],
-                                       record=[consumption, costs, len(record)],
+                                       columns=[ "mean", "stdDev" ,"nPoints", "lastUpdate"],
+                                       record=[consumption, costs, len(record), int(datetime.now().timestamp())],
                                        entry_id=record_id[0])
+
 
 if __name__=="__main__":
     from sync_database import setupSmartDevices

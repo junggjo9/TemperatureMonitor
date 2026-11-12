@@ -150,17 +150,17 @@ class SmartHomeDevice(object):
             end = self.latestRecord.strftime('%d.%m.%y %H:%M')))
 
         ### If no data is present we need to download the entire log stream
-     
-        iter = 0
+        downloaded = 0
   
         start_time = datetime.now() - timedelta(days =7)
         #### Start first with the most recent data
         for iter in range(50):
             fetched = self._downloadData(cloud_stream = cloud_stream, 
                                          start_time = start_time, 
-                                         end_time = start_time + time_delta(hours = 12))
+                                         end_time = start_time + timedelta(hours = 12))
             downloaded +=fetched
-            start_time += time_delta(hours=11)
+            logging.info(f"Downloaded {fetched} new data points")
+            start_time += timedelta(hours=11)
             if start_time > datetime.now(): break
             sleep(20 + iter % 20)
         return downloaded
@@ -174,7 +174,7 @@ class SmartHomeDevice(object):
         result = cloud.getdevicelog(self.tuya_id, start_timestamp, end_timestamp, size=1000)
  
         if not result["success"] == True:
-            logging.error(f"Failed to retrieve data from cloud")
+            logging.error(f"Failed to retrieve data from cloud {result}")
             exit(1)
         logs = result['result']["logs"]
         added = 0
@@ -201,7 +201,9 @@ class SmartHomeDevice(object):
 
 def setupSmartDevices(db_file: str, device_json: str = ""):
     dbObj = Database(db_file)
-    
+    devices = []
+    for dev_id in dbObj.loadDevices(device_json):
+        devices.append(SmartHomeDevice( db = dbObj, device_id = dev_id))
  
     ### Floating point values with one digit precision
     dbObj.defineConversion("va_temperature" , 0.1)
@@ -212,11 +214,6 @@ def setupSmartDevices(db_file: str, device_json: str = ""):
     dbObj.defineConversion("cur_current", 0.001)
     ### W -> kW with one digit precision
     dbObj.defineConversion("cur_power", 0.0001)
- 
-    devices = []
-    for dev_id in dbObj.loadDevices(device_json):
-        devices.append(SmartHomeDevice( db = dbObj, device_id = dev_id))
-
     return devices
 
 def setupArgParser():
@@ -228,14 +225,13 @@ def setupArgParser():
     parser.add_argument("--deviceJSON", help="JSON file where the TUYA device data is stored",
                                         default="devices.json")
     parser.add_argument("--dataBase", help="Directory where the JSON database is stored",
-                        default=f"{getenv('PWD')}/TemperatureMonitoring/data_records/records.db")
+                        default=f"{getenv('PWD')}/data_records/records.db")
     return parser
 
 
 if __name__ == "__main__":
     args = setupArgParser().parse_args()
     devices = setupSmartDevices(db_file = args.dataBase, device_json = args.deviceJSON)
-  
     import tinytuya
     try:
         cloud = tinytuya.Cloud()

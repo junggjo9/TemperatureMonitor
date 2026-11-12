@@ -90,16 +90,19 @@ class DbConnection(object):
         now = datetime.now()
         if not isdir(curr_dir): 
             system(f"mkdir -p {curr_dir}")
-        self.__lock_file = f"{curr_dir}/db.lock"
-        logging.debug(f"DbConnection() - lock file { self.__lock_file}")
+        self.__lock_file =""
         
-        while exists( self.__lock_file):
+        lock_file = f"{curr_dir}/db.lock"
+        logging.debug(f"DbConnection() - lock file {lock_file}")
+        
+        while exists(lock_file):
             logging.info("DBConnection() - Wait until database is closed")
             sleep(5)
             if datetime.now() - now > lock_time:
-                raise RuntimeError(f"DBConnection() - Failed to open {database_path}. Lock file {self.__lock_file} still exists")
+                raise RuntimeError(f"DBConnection() - Failed to open {database_path}. Lock file {lock_file} still exists")
 
-        with open(self.__lock_file, 'w') as f: f.write(database_path)
+        with open(lock_file, 'w') as f: f.write(database_path)
+        self.__lock_file = lock_file
 
         self.__path = database_path
         ### Database pointer
@@ -109,7 +112,8 @@ class DbConnection(object):
         self._loadTableInfo()
 
     def __del__(self):
-        system(f"rm {self.__lock_file}")
+        if exists (self.__lock_file): 
+            system(f"rm {self.__lock_file}")
         self.__db.close()
         
     
@@ -229,7 +233,7 @@ class DbConnection(object):
         range_str = "" if limit < 1 else f"LIMIT {start}, {limit}"
        
         query = f"SELECT {cols} FROM {tableName} {sel} {sort} {range_str}"
-        logging.debug(f"fetchFromTable() - Execute {query}")
+        logging.debug(f"fetchFromTable() - Execute `{query}`")
         cursor = self.instance.cursor()
         cursor.execute(query)
         return cursor.fetchall()
