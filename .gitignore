@@ -225,3 +225,4 @@ tinytuya.json
 tuya-raw.json
 sensor_data_history.json
 python_env/*
+*.db
