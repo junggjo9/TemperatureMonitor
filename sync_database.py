@@ -89,7 +89,7 @@ class SmartHomeDevice(object):
                                    "cur_current", "cur_voltage", "cur_power", "add_ele",
                                     ### Radiator calibration
                                     "power_coe", "electricity_coe", "electric_coe", 
-                                   ]: return
+                                   ]: return 0
         
         if data_field.dataType == VariableDataType.STRING:
             logging.debug(f"storeRecord() - String storage is not yet supported. Cannot store field {data_field.name}")
