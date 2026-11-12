@@ -150,30 +150,19 @@ class SmartHomeDevice(object):
             end = self.latestRecord.strftime('%d.%m.%y %H:%M')))
 
         ### If no data is present we need to download the entire log stream
-        is_empty = self.empty
+     
         iter = 0
-
-        downloaded = 0
+  
+        start_time = datetime.now() - timedelta(days =7)
         #### Start first with the most recent data
-        while iter < 5000:
+        for iter in range(50):
             fetched = self._downloadData(cloud_stream = cloud_stream, 
-                                          start_time = self.latestRecord - timedelta(minutes=1), 
-                                          end_time = datetime.now())
+                                         start_time = start_time, 
+                                         end_time = start_time + time_delta(hours = 12))
             downloaded +=fetched
-            if fetched == 0: break
-            ++iter
-            sleep(5)
-        #### The data has been queried before no need to try again
-        if not is_empty:
-            return downloaded
-        while iter < 1000:
-            fetched = self._downloadData(cloud_stream = cloud_stream, 
-                                          start_time = datetime.fromtimestamp(0), 
-                                          end_time = self.earliestRecord  + timedelta(minutes=1))
-            downloaded +=fetched
-            if fetched == 0: break
-            ++iter
-            sleep(5)
+            start_time += time_delta(hours=11)
+            if start_time > datetime.now(): break
+            sleep(20 + iter % 20)
         return downloaded
 
     def _downloadData(self, cloud_stream, start_time, end_time):
