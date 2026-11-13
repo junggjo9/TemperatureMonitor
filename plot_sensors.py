@@ -15,13 +15,15 @@ def setupArgParser():
     parser.add_argument("--plotPeriod" , help="Maximum period to show on the temperature curves in days",
                         type=int, default=7)
     parser.add_argument("--outFolder", help="Folder where the output plots will be stored",
-                        default="/var/www/html/temperature_flat/")
+                        default="./temperature_flat/")
+    parser.add_argument("--singleCurves", help="Switch to toggle whether the", default=False, 
+                        action='store_true')
+    parser.add_argument("--excludeFromSummary", help="Name of the devices to be exluded from the common plot",
+                        nargs="+", default=["Outside"])
     return parser
 
-if __name__== "__main__":
-    parser = setupArgParser()
+if __name__== "__main__":   
     args = setupArgParser().parse_args()
-
     devices = setupSmartDevices(db_file = args.dataBase)
     import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
@@ -35,56 +37,77 @@ if __name__== "__main__":
 
     db = devices[0].dbConnection
 
-    system(f"mkdir -p {args.outFolder}/daily/")
+    system(f"mkdir -p {args.outFolder}/daily/")    
     for d_field in db.loadVariables():      
         if d_field.name.find(args.curve) == -1: continue
         unit = d_field.unit
-  
-        for dev in devices:
-            if dev.name == "Outside": continue
+        for dev_num, dev in enumerate(devices):
+            if args.singleCurves: 
+                system(f"mkdir -p {args.outFolder}/{dev.name}/daily/")
+            elif dev.name in args.excludeFromSummary: continue
             if start_day is None or dev.earliestRecord < start_day: 
                 start_day = dev.earliestRecord
             time_series = fillAuxiliaryPoints(dev.payload(data_field=d_field, 
                                                           start_time=now - timedelta(days=args.plotPeriod),
                                                           end_time = now))
-            if len(time_series) == 0: continue
+            if len(time_series) == 0: 
+                continue
             x = [t for t, _ in time_series]
             y = [x  for _, x in time_series]
             ### Define the legend
             mean, stdDev = calcMeanObservable([x for x in time_series if x[0] > now - timedelta(days=1)])
+
             ax.plot(x, y, label="{name} room (Average last 24h: {mean:.1f} $\\pm$ {stdDev:.1f} {unit})".format(name = dev.name,
-                            mean=mean, stdDev=stdDev, unit=d_field.unit))
+                            mean=mean, stdDev=stdDev, unit=d_field.unit) if not args.singleCurves else None)
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m - %H:%M'))
+            fig.autofmt_xdate()  
+            ax.set_title(f"{args.curve} evolution in G503 - last update {now.strftime('%d.%m.%y %H:%M')}")
+            ax.set_xlabel("time")
+            ax.set_ylabel(f"{args.curve} [{unit}]")
+            
+            ax.grid(True)
 
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m - %H:%M'))
-        fig.autofmt_xdate()  
-        ax.set_title(f"{args.curve} evolution in G503 - last update {now.strftime('%d.%m.%y %H:%M')}")
-        ax.set_xlabel("time")
-        ax.set_ylabel(f"{args.curve} [{unit}]")
-        ax.legend() #plot the legend
-        ax.grid(True)
+            plt.tight_layout()
+            if args.singleCurves:
+                ax.set_title(f"{args.curve} evolution in G503 ({dev.name}) - Average last 24h: {mean:.1f} $\\pm$ {stdDev:.1f} {unit} - {now.strftime('%d.%m.%y %H:%M')}")
+                figure_name=f"{args.outFolder}/{dev.name}/{d_field.name}.pdf"
+                plt.savefig(figure_name, dpi=300)
+                plt.close(fig)
+                logging.info(f"Saved {figure_name}")
+                if dev_num +1 != len(devices):
+                    fig, ax = plt.subplots(figsize=(10, 6))
 
-        plt.tight_layout()
-        figure_name=f"{args.outFolder}/{d_field.name}.pdf"
-        plt.savefig(figure_name, dpi=300)
-        plt.close(fig)
-        logging.info(f"Saved {figure_name}")
+        if not args.singleCurves:
+            ax.set_title(f"{args.curve} evolution in G503 - last update {now.strftime('%d.%m.%y %H:%M')}")
+            ax.legend() #plot the legend
+            figure_name=f"{args.outFolder}/{d_field.name}.pdf"
+            plt.savefig(figure_name, dpi=300)
+            plt.close(fig)
+            logging.info(f"Saved {figure_name}")
   
         ### Next plot curves per date
         start_day = start_day.replace(hour=0, minute=0, second =1, microsecond=0)
         end_day = now.replace(hour=23, minute=59, second=59, microsecond=99)
         logging.info(f"Temperatur record ranges from {start_day.strftime('%d.%m.%y')} to {end_day.strftime('%d.%m.%y')}")
         while start_day < end_day:
-            figure_name =f"{args.outFolder}/daily/{d_field.name}_{start_day.strftime('%y-%m-%d')}"
-            if exists(f"{figure_name}.pdf") and (start_day.day != now.day or start_day.month != now.month):
-                logging.info(f"Do not recreate plot for {d_field.name} recorded @ {start_day.strftime('%d.%m.%y')}")
-                start_day = start_day + timedelta(days=1)
-                continue
+            if not args.singleCurves:
+                figure_name =f"{args.outFolder}/daily/{d_field.name}_{start_day.strftime('%y-%m-%d')}"
+                if exists(f"{figure_name}.pdf") and (start_day.day != now.day or start_day.month != now.month):
+                    logging.info(f"Do not recreate plot for {d_field.name} recorded @ {start_day.strftime('%d.%m.%y')}")
+                    start_day = start_day + timedelta(days=1)
+                    continue
 
-            fig, ax = plt.subplots(figsize=(10, 6))
+                fig, ax = plt.subplots(figsize=(10, 6))
 
             filled = False
-            for dev in devices:
-                if dev.name == "Outside": continue
+            for dev_num, dev in enumerate(devices):
+                if args.singleCurves:
+                    figure_name=f"{args.outFolder}/{dev.name}/daily/{d_field.name}_{start_day.strftime('%d.%m.%y')}.pdf"
+                    if exists(f"{figure_name}") and (start_day.day != now.day or start_day.month != now.month):
+                        logging.debug(f"Do not recreate plot {figure_name}")
+                        continue
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                elif dev.name in args.excludeFromSummary: continue 
                 date = int(start_day.timestamp())
                 stored_avg = dev.sqlDB.fetchFromTable(tableName="average_values",
                                                         columns=["mean", "stdDev"],
@@ -103,17 +126,33 @@ if __name__== "__main__":
                 y = [x  for _, x in time_series]
                 ### Define the legend
                 ax.plot(x, y, label="{name} room (Average: {mean:.1f} $\\pm$ {stdDev:.1f} {unit})".format(
-                                        name = dev.name, mean=mean, stdDev = stdDev, unit=d_field.unit))
+                                        name = dev.name, mean=mean, stdDev = stdDev, unit=d_field.unit) if args.singleCurves else None)
+
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+                ax.set_xlabel("time")
+                ax.set_ylabel(f"{d_field.name} [{unit}]")
+              
+                if args.singleCurves:
+                    ax.set_title(f"{args.curve} evolution in G503 ({dev.name}) - Average: {mean:.1f} $\\pm$ {stdDev:.1f} {unit} - {start_day.strftime('%d.%m.%y')}")
+                    ax.grid(True)
+                    plt.savefig(figure_name, dpi=300)
+                    plt.close(fig)
+                    logging.info(f"Saved {figure_name}")
+                    if dev_num +1 != len(devices):
+                        fig, ax = plt.subplots(figsize=(10, 6))
+                    continue
                 filled = True              
             
             ax.set_title(f"{d_field.name} evolution in G503 - Record: {start_day.strftime('%d.%m.%y')}")
             start_day = start_day + timedelta(days=1)
+            if not args.singleCurves: continue
             if not filled:
                plt.close(fig)
                continue
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
             ax.set_xlabel("time")
             ax.set_ylabel(f"{d_field.name} [{unit}]")
+
             ax.legend()  # Zeigt die Legende für die verschiedenen Kurven an
             ax.grid(True)
             plt.tight_layout()
