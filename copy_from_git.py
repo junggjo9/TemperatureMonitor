@@ -102,5 +102,8 @@ if __name__ == "__main__":
                            commit = commit, 
                            file_path = git_db), f)
             device.load_local_db(tmp_folder)
+
+        device.load_local_db(args.dbFolder)
+        
     system (f"rm -r {tmp_folder}")
     
