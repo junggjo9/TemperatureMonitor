@@ -15,7 +15,7 @@ def setupArgParser():
     parser.add_argument("--plotPeriod" , help="Maximum period to show on the temperature curves in days",
                         type=int, default=7)
     parser.add_argument("--outFolder", help="Folder where the output plots will be stored",
-                        default="plots/")
+                        default="/var/www/html/temperature_flat/")
     return parser
 
 if __name__== "__main__":
@@ -64,8 +64,10 @@ if __name__== "__main__":
         ax.grid(True)
 
         plt.tight_layout()
-        plt.savefig(f"{args.outFolder}/{d_field.name}.pdf", dpi=300)
+        figure_name=f"{args.outFolder}/{d_field.name}.pdf"
+        plt.savefig(figure_name, dpi=300)
         plt.close(fig)
+        logging.info(f"Saved {figure_name}")
   
         ### Next plot curves per date
         start_day = start_day.replace(hour=0, minute=0, second =1, microsecond=0)
@@ -116,6 +118,7 @@ if __name__== "__main__":
             ax.grid(True)
             plt.tight_layout()
             plt.savefig(f"{figure_name}.pdf", dpi=300)
+            logging.info(f"Saved {figure_name}.pdf")
             plt.close(fig)
            
         ##### Last but not least create the daily summary plot
@@ -144,6 +147,7 @@ if __name__== "__main__":
         plt.tight_layout()
         figure_name =f"{args.outFolder}/average_{d_field.name}" 
         plt.savefig(f"{figure_name}.pdf", dpi=300)
+        logging.info(f"Saved {figure_name}.pdf")
         plt.close(fig)
 
 
