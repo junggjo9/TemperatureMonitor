@@ -157,10 +157,10 @@ class SmartHomeDevice(object):
         for iter in range(50):
             fetched = self._downloadData(cloud_stream = cloud_stream, 
                                          start_time = start_time, 
-                                         end_time = start_time + timedelta(hours = 12))
+                                         end_time = start_time + timedelta(hours = 25))
             downloaded +=fetched
             logging.info(f"Downloaded {fetched} new data points")
-            start_time += timedelta(hours=11)
+            start_time += timedelta(days=2)
             if start_time > datetime.now(): break
             sleep(20 + iter % 20)
         return downloaded

@@ -102,8 +102,15 @@ if __name__ == "__main__":
                            commit = commit, 
                            file_path = git_db), f)
             device.load_local_db(tmp_folder)
+            print ("Device {dev_name} has data from {start} until {end}".format(
+            dev_name = device.name, 
+            start = device.first_record_time.strftime('%d.%m.%y %H:%M'),
+            end = device.latest_record_time.strftime('%d.%m.%y %H:%M')))
+
 
         device.load_local_db(args.dbFolder)
+        device.update_db()
+        device = None
         
     system (f"rm -r {tmp_folder}")
     
