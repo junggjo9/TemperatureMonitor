@@ -10,28 +10,28 @@ from time import sleep
 class DataFormat(object):
     def __repr__(self):
         return f"Sensor data {self.name} of type {self.data_type} "
-    def __init__(self, name:str, 
-                       d_type: str, 
+    def __init__(self, name:str,
+                       d_type: str,
                        d_range: dict):
         self.__name = name
         self.__data_type = d_type
-        
+
         self.__min = d_range["min"] if isinstance(d_range, dict) and "min" in d_range.keys() else 0
         self.__max = d_range["max"] if isinstance(d_range, dict) and "max" in d_range.keys() else 0
         self.__unit =  d_range["unit"] if isinstance(d_range, dict) and "unit" in d_range.keys() else "Undefined"
         self.__allowed = d_range["range"] if isinstance(d_range, dict) and "range" in d_range.keys() else []
     @property
     def minimum(self): return self.__min
-    @property 
+    @property
     def maximum(self): return self.__max
     @property
     def name(self): return self.__name
-    @property 
+    @property
     def unit(self): return self.__unit
     @property
     def data_type(self): return self.__data_type
-    @property 
-    def json_dict(self): 
+    @property
+    def json_dict(self):
         result = {
             "code": self.name,
             "type": self.data_type,
@@ -248,7 +248,7 @@ class DeviceData(object):
             if self._append_point(d_type, d_time, d_value):
                added+=1
         return added
-           
+
 
     def update_db(self):
         if len(self.__db_file) == 0:
@@ -300,7 +300,7 @@ def setupArgParser():
     parser.add_argument("--apiJSON", help="JSON file containing the API access secrets",
                         default="tinytuya.json")
     parser.add_argument("--dbFolder", help="Directory where the JSON database is stored",
-                        default="/var/www/html/temperature_flat/")
+                        default="/var/www/html/temperature_flat/records/")
     return parser
 if __name__ =="__main__":
     import tinytuya
@@ -326,3 +326,4 @@ if __name__ =="__main__":
         device.load_local_db(args.dbFolder)
         if device.fetch_from_cloud(cloud) >0:
             device.update_db()
+        device = None
