@@ -145,7 +145,7 @@ if __name__== "__main__":
             
             ax.set_title(f"{d_field.name} evolution in G503 - Record: {start_day.strftime('%d.%m.%y')}")
             start_day = start_day + timedelta(days=1)
-            if not args.singleCurves: continue
+            if args.singleCurves: continue
             if not filled:
                plt.close(fig)
                continue

@@ -216,7 +216,7 @@ if __name__=="__main__":
     for device in setupSmartDevices(db_file = args.dataBase):
         logging.debug(f"Analyze device {device.name} that stores data {device.earliestRecord.strftime('%d.%m.%y %H:%M')} until {device.latestRecord.strftime('%d.%m.%y %H:%M')}")
         for var in device.dataFields:
-            if False and var.name in args.averageVars: 
+            if var.name in args.averageVars: 
                 calcDailyAverage(device = device, field = var, ignorePastDays=args.reDoAll)
             elif var.name == "add_ele":
                 calcCosts(device = device, field = var, ignorePastDays=args.reDoAll)
