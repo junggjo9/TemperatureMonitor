@@ -164,6 +164,7 @@ def calcCosts(device, field, ignorePastDays = True):
     now =datetime.now()
     total_costs =0.
     while start_day < end_day:
+        logging.info(f"calcCosts() - {start_day} until {end_day}")
         date = int(start_day.timestamp())
 
         record_id =  device.sqlDB.fetchFromTable(tableName="average_values",
@@ -189,12 +190,12 @@ def calcCosts(device, field, ignorePastDays = True):
         costs = 0.
         last_time = record[0][0]
         electric_tarif = CostTable()
-        logging.info(f"calcCosts() - Cost table\n{electric_tarif}")
+        logging.debug(f"calcCosts() - Cost table\n{electric_tarif}")
         for time, consumed in record:
             costs+= electric_tarif.price(start_clock = last_time, end_clock = time, consumed_kwH = consumed)
             consumption+=consumed
             last_time = time
-        logging.info(f"calcCosts() - Fetched {len(record)} records for day {start_day.strftime('%d.%m.%y')}. Consumed {consumption:.3f} kWh --> Costs: {costs:.2f}")
+        logging.debug(f"calcCosts() - Fetched {len(record)} records for day {start_day.strftime('%d.%m.%y')}. Consumed {consumption:.3f} kWh --> Costs: {costs:.2f}")
 
         start_day = start_day + timedelta(days=1)
         if len(record_id) == 0:
