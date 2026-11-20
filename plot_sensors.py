@@ -143,7 +143,7 @@ def setupArgParser():
     parser.add_argument("--plotPeriod" , help="Maximum period to show on the temperature curves in days",
                         type=int, default=7)
     parser.add_argument("--outFolder", help="Folder where the output plots will be stored",
-                        default="./temperature_flat/")
+                        default="/var/html/temperature_flat/plots/")
     parser.add_argument("--singleCurves", help="Switch to toggle whether the", default=False, 
                         action='store_true')
     parser.add_argument("--excludeFromSummary", help="Name of the devices to be exluded from the common plot",

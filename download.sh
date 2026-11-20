@@ -5,5 +5,3 @@ cd /home/user/TemperatureMonitoring/
 python sync_database.py
 
 python curve_analysis.py
-
-exit
