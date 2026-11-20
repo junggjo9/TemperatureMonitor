@@ -5,6 +5,79 @@ logging.basicConfig(format='%(levelname)s : %(message)s', level=logging.INFO)
 
 
 
+class CostSlot(object):
+    def __init__(self, 
+                 start:datetime, 
+                 end:datetime,
+                 pricePerkWh= 0.):
+        self.__start = start
+        self.__end = end
+        self.__price = pricePerkWh
+    @property
+    def start(self): return self.__start
+    @property
+    def end(self): return self.__end
+    @property
+    def kWhPrice(self): return self.__price
+    @staticmethod
+    def replaceClock(time, replaceW):
+        return time.replace(hour= replaceW.hour, 
+                            minute = replaceW.minute,
+                            second= replaceW.second)
+    def check(self, time):
+        return time.timestamp() - self.replaceClock(time, self.start).timestamp() > 0 and \
+              self.replaceClock(time, self.end).timestamp() - time.timestamp() >= 0
+
+class CostTable(object):
+    def __str__(self):
+        out_str = ""
+        for slot in self.__slots:
+            out_str+=f"  -- {slot.start} - {slot.end}, price: {slot.kWhPrice}\n"
+        return out_str
+    def __init__(self):
+        self.__slots=[CostSlot(start=time(hour = 0, minute= 00),
+                               end=time(hour=1, minute=29, second=59),
+                               pricePerkWh= 0.1479),
+                      CostSlot(start=time(hour = 1, minute= 30),
+                               end=time(hour=6, minute=59, second=59),
+                               pricePerkWh= 0.1018),
+                      CostSlot(start=time(hour = 7, minute= 0),
+                               end=time(hour=14, minute=29, second=59),
+                               pricePerkWh= 0.1479),
+                      CostSlot(start=time(hour = 14, minute= 30),
+                               end=time(hour=16, minute=59, second=59),
+                               pricePerkWh= 0.1018),
+                      CostSlot(start=time(hour = 17, minute= 00),
+                               end=time(hour=23, minute=59, second=59),
+                               pricePerkWh= 0.1479)]
+
+    def _timeSlotNo(self, time):
+        for i in range(self.nSlots):
+            if self.__slots[i].check(time): return i
+        return self.nSlots
+    @property
+    def nSlots(self): return len(self.__slots)
+    def price(self, start_clock, end_clock, consumed_kwH):
+        if start_clock > end_clock:
+            raise RuntimeError(f"The start time cannot be after the end time")
+        slot_a = self._timeSlotNo(start_clock)
+        slot_b = self._timeSlotNo(end_clock)
+        if slot_a == slot_b: return self.__slots[slot_a].kWhPrice * consumed_kwH
+        if slot_b == 0: slot_b = self.nSlots
+            
+        interval = end_clock.timestamp() - start_clock.timestamp()
+        logging.info(f"price evalation time interval: {timedelta(seconds=interval)},  electricity: {consumed_kwH},  {start_clock.strftime('%d.%m.%y %H:%M:%S')} ({slot_a}), {end_clock.strftime('%d.%m.%y %H:%M:%S')} ({slot_b})")
+        calc_price = 0.
+        for slot_no in range(slot_a, slot_b+1, 1):
+            slot = self.__slots[slot_no % self.nSlots]
+            duration = min(slot.replaceClock(end_clock, slot.end), end_clock) - \
+                       max(slot.replaceClock(start_clock, slot.start), start_clock)
+            slot_price = duration.seconds * consumed_kwH * slot.kWhPrice
+            calc_price+= slot_price
+            logging.info(f" interval duration: {duration}, {slot_price / interval:.2f}")
+        return calc_price / interval
+
+
 def setupArgParser():
     from sync_database import setupArgParser as argParserBase
     parser = argParserBase()
@@ -88,74 +161,6 @@ def calcDailyAverage(device, field, ignorePastDays = True):
                                        columns=[ "mean", "stdDev" ,"nPoints", "lastUpdate"],
                                        record=[mean, stdDev, len(record), int(datetime.now().timestamp())],
                                        entry_id=record_id[0][0])
-
-class CostSlot(object):
-    def __init__(self, 
-                 start:datetime, 
-                 end:datetime,
-                 pricePerkWh= 0.):
-        self.__start = start
-        self.__end = end
-        self.__price = pricePerkWh
-    @property
-    def start(self): return self.__start
-    @property
-    def end(self): return self.__end
-    @property
-    def kWhPrice(self): return self.__price
-    @staticmethod
-    def replaceClock(time, replaceW):
-        return time.replace(hour= replaceW.hour, 
-                            minute = replaceW.minute,
-                            second= replaceW.second)
-    def check(self, time):
-        return time.timestamp() - self.replaceClock(time, self.start).timestamp() > 0 and \
-              self.replaceClock(time, self.end).timestamp() - time.timestamp() >= 0
-
-class CostTable(object):
-    def __str__(self):
-        out_str = ""
-        for slot in self.__slots:
-            out_str+=f"  -- {slot.start} - {slot.end}, price: {slot.kWhPrice}\n"
-        return out_str
-    def __init__(self):
-        self.__slots=[CostSlot(start=time(hour = 0, minute= 00),
-                               end=time(hour=1, minute=29, second=59),
-                               pricePerkWh= 0.1479),
-                      CostSlot(start=time(hour = 1, minute= 30),
-                               end=time(hour=6, minute=59, second=59),
-                               pricePerkWh= 0.1018),
-                      CostSlot(start=time(hour = 7, minute= 0),
-                               end=time(hour=14, minute=29, second=59),
-                               pricePerkWh= 0.1479),
-                      CostSlot(start=time(hour = 14, minute= 30),
-                               end=time(hour=16, minute=59, second=59),
-                               pricePerkWh= 0.1018),
-                      CostSlot(start=time(hour = 17, minute= 00),
-                               end=time(hour=23, minute=59, second=59),
-                               pricePerkWh= 0.1479)]
-
-    def _timeSlotNo(self, time):
-        for i in range(len(self.__slots)):
-            if self.__slots[i].check(time): return i
-        return len(self.__slots)
-
-    def price(self, start_clock, end_clock, consumed_kwH):
-        slot_a = self._timeSlotNo(start_clock)
-        slot_b = self._timeSlotNo(end_clock)
-        if slot_a == slot_b: return self.__slots[slot_a].kWhPrice * consumed_kwH
-        interval = end_clock.timestamp() - start_clock.timestamp()
-        logging.info(f"price evalation time interval: {timedelta(seconds=interval)},  electricity: {consumed_kwH},  {start_clock.strftime('%d.%m.%y %H:%M:%S')} ({slot_a}), {end_clock.strftime('%d.%m.%y %H:%M:%S')} ({slot_b})")
-        calc_price = 0.
-        for slot_no in range(slot_a, slot_b+1, 1):
-            slot = self.__slots[slot_no]
-            duration = min(slot.replaceClock(end_clock, slot.end), end_clock) - \
-                       max(slot.replaceClock(start_clock, slot.start), start_clock)
-            slot_price = duration.seconds * consumed_kwH * slot.kWhPrice
-            calc_price+= slot_price
-            logging.info(f" interval duration: {duration}, {slot_price / interval:.2f}")
-        return calc_price / interval
-
 
 def calcCosts(device, field, ignorePastDays = True):
     logging.info(f"calcCosts() - Calculate the consumption and costs recorded by {device.name}")
