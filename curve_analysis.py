@@ -23,9 +23,10 @@ class CostSlot(object):
     def replaceClock(time, replaceW):
         return time.replace(hour= replaceW.hour, 
                             minute = replaceW.minute,
-                            second= replaceW.second)
+                            second= replaceW.second,
+                            microsecond=0)
     def check(self, time):
-        return time.timestamp() - self.replaceClock(time, self.start).timestamp() > 0 and \
+        return time.timestamp() - self.replaceClock(time, self.start).timestamp() >= 0 and \
               self.replaceClock(time, self.end).timestamp() - time.timestamp() >= 0
 
 class CostTable(object):
@@ -57,24 +58,39 @@ class CostTable(object):
         return self.nSlots
     @property
     def nSlots(self): return len(self.__slots)
+
     def price(self, start_clock, end_clock, consumed_kwH):
         if start_clock > end_clock:
-            raise RuntimeError(f"The start time cannot be after the end time")
+            raise RuntimeError(f"The start time {start_clock.strftime('%d.%m.%y %H:%M:%S')} cannot be after the end time {end_clock.strftime('%d.%m.%y %H:%M:%S')}")
+        
+        calc_price = 0.
+        interval = end_clock.timestamp() - start_clock.timestamp()
+        if start_clock.day != end_clock.day:
+            while start_clock < end_clock:
+                day_end = min(start_clock.replace(hour= 23,  minute = 59, second= 59), end_clock)
+                day_interval = start_clock.timestamp()  - day_end.timestamp()
+                calc_price += self.price(start_clock = start_clock, end_clock = day_end, consumed_kwH=consumed_kwH) * day_interval / interval
+                start_clock = day_end + timedelta(seconds=1)
+            return calc_price
         slot_a = self._timeSlotNo(start_clock)
         slot_b = self._timeSlotNo(end_clock)
         if slot_a == slot_b: return self.__slots[slot_a].kWhPrice * consumed_kwH
-        if slot_b == 0: slot_b = self.nSlots
+      
             
-        interval = end_clock.timestamp() - start_clock.timestamp()
-        logging.info(f"price evalation time interval: {timedelta(seconds=interval)},  electricity: {consumed_kwH},  {start_clock.strftime('%d.%m.%y %H:%M:%S')} ({slot_a}), {end_clock.strftime('%d.%m.%y %H:%M:%S')} ({slot_b})")
+        
+        logging.info(f"Price evalation time interval: {timedelta(seconds=interval)},  electricity: {consumed_kwH},  {start_clock.strftime('%d.%m.%y %H:%M:%S')} ({slot_a}), {end_clock.strftime('%d.%m.%y %H:%M:%S')} ({slot_b})")
+        
+        if slot_b < slot_a or slot_b >= self.nSlots:
+            raise RuntimeError(f"Invalid slot configuration {slot_b} {slot_a}")
         calc_price = 0.
         for slot_no in range(slot_a, slot_b+1, 1):
-            slot = self.__slots[slot_no % self.nSlots]
+            slot = self.__slots[slot_no ]
+            
             duration = min(slot.replaceClock(end_clock, slot.end), end_clock) - \
                        max(slot.replaceClock(start_clock, slot.start), start_clock)
             slot_price = duration.seconds * consumed_kwH * slot.kWhPrice
             calc_price+= slot_price
-            logging.info(f" interval duration: {duration}, {slot_price / interval:.2f}")
+            logging.debug(f" interval duration: {duration}, {slot_price / interval:.2f}")
         return calc_price / interval
 
 
