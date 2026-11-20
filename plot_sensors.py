@@ -30,13 +30,17 @@ class Histogram(object):
 
 class PlotContent(object):
     def __init__(self, plot_path ="", title="", showLegend = True,
-                 xLabel="time", yLabel="", xDateFormat="%d.%m %H:%M"):
+                 xLabel="time", yLabel="", xDateFormat="%d.%m %H:%M",
+                 countThreshold=None, countLabel=""):
         self.__path = plot_path
         self.__title = title
         self.__legend = showLegend
         self.__xLabel = xLabel
         self.__yLabel = yLabel
         self.__xDateFormat = xDateFormat
+        ### If set, count the time points where at least one histogram exceeds the threshold
+        self.__countThreshold = countThreshold
+        self.__countLabel = countLabel
         self.__histos = []
 
     def addHisto(self, histo: Histogram):
@@ -57,8 +61,73 @@ class PlotContent(object):
     def yLabel(self): return self.__yLabel
     @property
     def xDateFormat(self): return self.__xDateFormat
+    @property
+    def countThreshold(self): return self.__countThreshold
+    @property
+    def countLabel(self): return self.__countLabel
 
 
+def latestPerDay(rows):
+    """Rows are (date, ..., lastUpdate). The average_values table may contain several entries
+       for the same calendar day (e.g. stored at 00:00:00 and 00:00:01 by different runs).
+       Keep only the most recently updated one per day and drop the lastUpdate column."""
+    per_day = {}
+    for row in rows:
+        day = datetime.fromtimestamp(row[0]).date()
+        if day not in per_day or row[-1] > per_day[day][-1]:
+            per_day[day] = row
+    return [per_day[day][:-1] for day in sorted(per_day)]
+
+
+def drawPlots(plots):
+    """Draw each PlotContent with matplotlib and save it to its plotPath"""
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+    from os import makedirs
+    from os.path import dirname
+    from itertools import cycle
+    markers = ["^", "o", "s", "v", "D", "P", "X", "*", "<", ">", "h", "p"]
+    for plot in plots:
+        fig, ax = plt.subplots(figsize=(12, 6))
+        exceeding_times = set()
+        for histo, marker in zip(plot.histos, cycle(markers)):
+            values = histo.values
+            yerr = histo.yaxis_erros
+            ### matplotlib cannot draw timedeltas on the y-axis -> convert to hours
+            if len(values) and isinstance(values[0], timedelta):
+                values = [v.total_seconds() / 3600. for v in values]
+                if yerr is not None:
+                    yerr = [e.total_seconds() / 3600. for e in yerr]
+            if plot.countThreshold is not None:
+                exceeding_times.update(t.date() for t, v in zip(histo.time, values) if v > plot.countThreshold)
+            xerr = histo.xaxis_erros
+            if xerr is not None or yerr is not None:
+                ax.errorbar(histo.time, values, xerr=xerr, yerr=yerr,
+                            fmt=marker, markersize=8, capsize=3, label=histo.label)
+            else:
+                ### Dense time series: only mark every n-th point to keep the curve readable
+                ax.plot(histo.time, values, marker=marker, markersize=7,
+                        markevery=max(1, len(values) // 20), label=histo.label)
+        ax.xaxis.set_major_formatter(mdates.DateFormatter(plot.xDateFormat))
+        fig.autofmt_xdate()
+        if len(plot.title): ax.set_title(plot.title)
+        if len(plot.xLabel): ax.set_xlabel(plot.xLabel)
+        if len(plot.yLabel): ax.set_ylabel(plot.yLabel)
+        if plot.countThreshold is not None:
+            ax.axhline(plot.countThreshold, color="red", linestyle="--", linewidth=1)
+            ### Place the counter above the axes (top right) so it never covers the data or the legend
+            ax.text(1.0, 1.02, f"{plot.countLabel}: {len(exceeding_times)}", transform=ax.transAxes,
+                    fontsize=14, horizontalalignment="right", verticalalignment="bottom",
+                    bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
+        ### Legend outside the axes on the right so it never hides data points
+        if plot.showLegend: ax.legend(fontsize=14, markerscale=1.5, loc="upper left",
+                                      bbox_to_anchor=(1.01, 1.0), borderaxespad=0.)
+        ax.grid(True)
+        fig.tight_layout()
+        if len(dirname(plot.plotPath)): makedirs(dirname(plot.plotPath), exist_ok=True)
+        fig.savefig(plot.plotPath, dpi=300, bbox_inches="tight")
+        logging.info(f"Saved {plot.plotPath}")
+        plt.close(fig)
 
 
 def setupArgParser():
@@ -123,7 +192,8 @@ if __name__== "__main__":
                                           title="{label} evolution in G503 ({sensor_name}) - Last 24h: {mean:.1f} $\\pm$ {stdDev:.1f} {unit}{extra} - {update_time} ".format(
                                                 label = args.curve if len(d_field.label) == 0 else d_field.label,
                                                 sensor_name = dev.name, mean=mean, stdDev=stdDev, unit=d_field.unit,
-                                                extra = f" - too cold: {timedelta(seconds=coldTime)}" if args.curve == "temperature" and coldTime > 60*60*2 else "" ) 
+                                                extra = f" - too cold: {timedelta(seconds=coldTime)}" if args.curve == "temperature" and coldTime > 60*60*2 else "",
+                                                update_time=now.strftime('%d.%m.%y %H:%M') ) 
                                           )
                 deviceCurve.addHisto(dev_histo)
                 plots.append(deviceCurve)
@@ -197,16 +267,18 @@ if __name__== "__main__":
             summaryPlot = PlotContent(plot_path=f"{args.outFolder}/average/{d_field.name}_{start_day.strftime('%b%y')}.pdf",
                                       xLabel="date", yLabel=f"daily average {yLabel}", xDateFormat="%d.%m.%y")
             tooColdPlot = PlotContent(plot_path=f"{args.outFolder}/average/low_temperature_{start_day.strftime('%b%y')}.pdf",
-                                      xLabel="date", yLabel="time below 18 degrees [h]", xDateFormat="%d.%m.%y")
+                                      xLabel="date", yLabel="time below 18 degrees [h]", xDateFormat="%d.%m.%y",
+                                      countThreshold=6, countLabel="Days with > 6 h below 18 degrees")
 
             for dev in devices:
                 if dev.name in args.excludeFromSummary: continue
                 time_series = dev.sqlDB.fetchFromTable(tableName="average_values",
-                                                       columns=["date", "mean", "stdDev"],
+                                                       columns=["date", "mean", "stdDev", "lastUpdate"],
                                                        conditions=[f"device={dev.device_id}",
                                                                    f"variable={d_field.id}",
                                                                    f"date>={int(start_day.timestamp())}",
                                                                    f"date<{int(end_day.timestamp())}"])
+                time_series = latestPerDay(time_series)
                 if len(time_series) ==0: 
                     continue
                              
@@ -220,11 +292,12 @@ if __name__== "__main__":
                 if "temperature" not in d_field.name: continue
 
                 time_series = dev.sqlDB.fetchFromTable(tableName="average_values",
-                                                       columns=["date", "alarmPeriod"],
+                                                       columns=["date", "alarmPeriod", "lastUpdate"],
                                                        conditions=[f"device={dev.device_id}",
                                                                    f"variable={d_field.id}",
                                                                    f"date>={int(start_day.timestamp())}",
                                                                    f"date<{int(end_day.timestamp())}"])
+                time_series = [(t, x) for t, x in latestPerDay(time_series) if x is not None]
                 dev_histo = Histogram(times=[datetime.fromtimestamp(t).replace(hour=12) for t, _ in time_series], 
                                       values= [timedelta(seconds=x)  for _, x in time_series], 
                                       xerr=[timedelta(hours=12) for i in range(len(time_series))],  label=dev.name)
@@ -234,40 +307,7 @@ if __name__== "__main__":
             if summaryPlot.nHistos: plots.append(summaryPlot)
 
     ### Draw all collected plots
-    from os import makedirs
-    from os.path import dirname
-    from itertools import cycle
-    markers = ["^", "o", "s", "v", "D", "P", "X", "*", "<", ">", "h", "p"]
-    for plot in plots:
-        fig, ax = plt.subplots(figsize=(12, 6))
-        for histo, marker in zip(plot.histos, cycle(markers)):
-            values = histo.values
-            yerr = histo.yaxis_erros
-            ### matplotlib cannot draw timedeltas on the y-axis -> convert to hours
-            if len(values) and isinstance(values[0], timedelta):
-                values = [v.total_seconds() / 3600. for v in values]
-                if yerr is not None:
-                    yerr = [e.total_seconds() / 3600. for e in yerr]
-            xerr = histo.xaxis_erros
-            if xerr is not None or yerr is not None:
-                ax.errorbar(histo.time, values, xerr=xerr, yerr=yerr,
-                            fmt=marker, markersize=8, capsize=3, label=histo.label)
-            else:
-                ### Dense time series: only mark every n-th point to keep the curve readable
-                ax.plot(histo.time, values, marker=marker, markersize=7,
-                        markevery=max(1, len(values) // 20), label=histo.label)
-        ax.xaxis.set_major_formatter(mdates.DateFormatter(plot.xDateFormat))
-        fig.autofmt_xdate()
-        if len(plot.title): ax.set_title(plot.title)
-        if len(plot.xLabel): ax.set_xlabel(plot.xLabel)
-        if len(plot.yLabel): ax.set_ylabel(plot.yLabel)
-        if plot.showLegend: ax.legend(fontsize=14, markerscale=1.5)
-        ax.grid(True)
-        fig.tight_layout()
-        if len(dirname(plot.plotPath)): makedirs(dirname(plot.plotPath), exist_ok=True)
-        fig.savefig(plot.plotPath, dpi=300)
-        logging.info(f"Saved {plot.plotPath}")
-        plt.close(fig)
+    drawPlots(plots)
         
        
 
