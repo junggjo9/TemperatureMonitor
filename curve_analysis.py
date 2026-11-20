@@ -134,7 +134,12 @@ def calcMeanObservable(time_series):
     mean = integrate.trapezoid(y, x=x) / interval
     return mean, sqrt(max(integrate.trapezoid( [ v**2 for v in y], x=x)/ interval -mean**2,0.)) 
 
-
+def periodBelowThreshold(time_series, threshold = 18.):
+    x = [t.timestamp() for t, _ in time_series]
+    y = [1. if x < threshold else 0.  for _, x in time_series]
+    from scipy import integrate
+    return integrate.trapezoid(y, x=x)
+    
 def summaryUpdateNeeded(start_day, record_id, ignorePastDays = True):
     now = datetime.now()
     return not ignorePastDays or len(record_id) == 0 or (now - start_day).days <= 1  or \
@@ -142,7 +147,7 @@ def summaryUpdateNeeded(start_day, record_id, ignorePastDays = True):
 
 def calcDailyAverage(device, field, ignorePastDays = True):
     logging.info(f"calcDailyAverage() - Calculate the {field.name}'s daily average recorded by {device.name}")
-    start_day = device.earliestRecord.replace(hour=0, minute=0, second =1, microsecond=0)
+    start_day = device.earliestRecord.replace(hour=0, minute=0, second =0, microsecond=0)
     end_day = device.latestRecord.replace(hour=23, minute=59, second=59, microsecond=99)
     now =datetime.now()
     while start_day < end_day:
@@ -154,28 +159,41 @@ def calcDailyAverage(device, field, ignorePastDays = True):
                                                 f"date={date}"])
                 
         if not summaryUpdateNeeded(start_day, record_id, ignorePastDays):
+            logging.info(f"caclDailyAverage() - No update needed for day {start_day.strftime('%d.%m.%y')}, {len(record_id)}")
             start_day = start_day + timedelta(days=1)
             continue
         
         record = device.payload(data_field = field,
                                 start_time = start_day,
                                 end_time = start_day + timedelta(days =1))
-        logging.debug(f"calcDailyAverage() - Fetched {len(record)} records for day {start_day.strftime('%d.%m.%y')}")
+        logging.info(f"calcDailyAverage() - Fetched {len(record)} records for day {start_day.strftime('%d.%m.%y')}")
 
         start_day = start_day + timedelta(days=1)
         if len(record) < 2:
             logging.debug("calcDailyAverage() - Too little records")        
             continue
-        mean, stdDev = calcMeanObservable(fillAuxiliaryPoints(record))
-        logging.debug(f"Calculated mean {mean} +- {stdDev}")
+        time_series = fillAuxiliaryPoints(record)
+        mean, stdDev = calcMeanObservable(time_series)
+
+        table_columns = [ "mean", "stdDev" ,"nPoints", "lastUpdate"]
+        table_values = [mean, stdDev, len(record), int(datetime.now().timestamp())]
+        
+        logging.info(f"Calculated mean {mean:.2f} +- {stdDev:.2f}")
+        if field.name.find("temperature") != -1:
+            interval = periodBelowThreshold(time_series)
+            table_values+=[interval]
+            table_columns+=["alarmPeriod"]
+            logging.info(f"Time below 18 degree {timedelta(seconds=interval)}")
+
+
         if len(record_id) == 0:
             device.sqlDB.insertRecord(tableName="average_values",
-                                       columns=["device", "variable", "mean", "stdDev" , "date" , "nPoints", "lastUpdate"],
-                                       record=[device.device_id, field.id, mean, stdDev, date, len(record), int(datetime.now().timestamp())])
+                                       columns=["device", "variable", "date"] + table_columns,
+                                       record=[device.device_id, field.id, date] + table_values)
         else:
             device.sqlDB.updateRecord(tableName="average_values",
-                                       columns=[ "mean", "stdDev" ,"nPoints", "lastUpdate"],
-                                       record=[mean, stdDev, len(record), int(datetime.now().timestamp())],
+                                       columns=table_columns,
+                                       record=table_values,
                                        entry_id=record_id[0][0])
 
 def calcCosts(device, field, ignorePastDays = True):
@@ -185,7 +203,7 @@ def calcCosts(device, field, ignorePastDays = True):
     now =datetime.now()
     total_costs =0.
     while start_day < end_day:
-        logging.info(f"calcCosts() - {start_day} until {end_day}")
+        logging.debug(f"calcCosts() - {start_day} until {end_day}")
         date = int(start_day.timestamp())
 
         record_id =  device.sqlDB.fetchFromTable(tableName="average_values",
