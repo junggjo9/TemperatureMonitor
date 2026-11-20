@@ -33,6 +33,8 @@ class DeviceVariable(object):
         self.__conversion = variable_record[7]
         self.__label = variable_record[8]
 
+        if self.__label is None: self.__label =""
+
         if isinstance(self.__discrete, str):
             self.__discrete = self.__discrete.split(",")
 
