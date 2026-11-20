@@ -119,9 +119,14 @@ def drawPlots(plots):
             ax.text(1.0, 1.02, f"{plot.countLabel}: {len(exceeding_times)}", transform=ax.transAxes,
                     fontsize=14, horizontalalignment="right", verticalalignment="bottom",
                     bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
-        ### Legend outside the axes on the right so it never hides data points
-        if plot.showLegend: ax.legend(fontsize=14, markerscale=1.5, loc="upper left",
-                                      bbox_to_anchor=(1.01, 1.0), borderaxespad=0.)
+        ### Widen the y-range: a small margin below the data and extra headroom on top
+        ### which grows with the number of legend entries so the legend does not cover the curves
+        y_low, y_high = ax.get_ylim()
+        span = (y_high - y_low) or 1.
+        n_entries = plot.nHistos if plot.showLegend else 0
+        top_margin = min(0.1 + 0.08 * n_entries, 0.8)
+        ax.set_ylim(y_low - 0.05 * span, y_high + top_margin * span)
+        if plot.showLegend: ax.legend(fontsize=14, markerscale=1.5, loc="upper right")
         ax.grid(True)
         fig.tight_layout()
         if len(dirname(plot.plotPath)): makedirs(dirname(plot.plotPath), exist_ok=True)
