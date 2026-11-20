@@ -216,12 +216,15 @@ def calcCosts(device, field, ignorePastDays = True):
             start_day = start_day + timedelta(days=1)
             continue
 
+        ### Each add_ele value is the energy consumed since the previous reading -> no edge padding,
+        ### otherwise the first / last reading of the day would be counted twice
         record = device.payload(data_field = field,
                                 start_time = start_day,
-                                end_time = start_day + timedelta(days =1))
+                                end_time = start_day + timedelta(days =1),
+                                padEdges = False)
 
         if len(record) < 2:
-            logging.debug("calcCosts() - Too little records")  
+            logging.debug("calcCosts() - Too little records")
             start_day = start_day + timedelta(days=1)
             continue
 

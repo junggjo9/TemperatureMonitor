@@ -124,17 +124,21 @@ class SmartHomeDevice(object):
     def payload(self, 
                 data_field: DeviceVariable,
                 start_time = datetime.fromtimestamp(0),
-                end_time = datetime.now()):
+                end_time = datetime.now(),
+                padEdges = True):
+        """Fetch the records of a data field in [start_time, end_time]. If padEdges is set, the first & last
+           values are copied to start_time & end_time. This is fine for state-like quantities (temperature, ...),
+           but must be disabled for incremental quantities (e.g. consumed energy) as it double counts them."""
         records =  self.dbConnection.fetchRecords(device = self.device_id,
                                                   variable = data_field.id,
                                                   start_time = start_time,
                                                   end_time = end_time)
         if len(records) == 0: return records
-        if self.earliestRecord < start_time:
-            records.insert(0, [start_time, records[0][1]]) 
+        if padEdges and self.earliestRecord < start_time:
+            records.insert(0, [start_time, records[0][1]])
 
-        if self.latestRecord < end_time:
-            records.append([end_time, records[-1][1]]) 
+        if padEdges and self.latestRecord < end_time:
+            records.append([end_time, records[-1][1]])
 
         if data_field.dataType == VariableDataType.NUMERIC and data_field.conversion != 1.:
             return [ (x[0], x[1] * data_field.conversion) for x in records]
