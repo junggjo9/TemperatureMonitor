@@ -12,6 +12,12 @@ class DataTypes(Enum):
     INT_TYPE = 0 #
     REAL_TYPE = 1
     TEXT_TYPE = 2
+    
+    def __str__(self):
+        if self is DataTypes.INT_TYPE: return "INTEGER"
+        elif self is  DataTypes.REAL_TYPE: return "REAL"
+        elif self is DataTypes.TEXT_TYPE: return "TEXT"
+        raise RuntimeError(f"DataTypes() - Invalid string format {self.value}")
 
 class Order(Enum):
     ASC = 0
@@ -140,7 +146,7 @@ class DbConnection(object):
                 if column_def[1] == "INTEGER": d_type = DataTypes.INT_TYPE
                 elif column_def[1] == "REAL": d_type = DataTypes.REAL_TYPE
                 elif column_def[1] == "TEXT": d_type = DataTypes.TEXT_TYPE
-                else: raise RuntimeError(f"Column {column_name} has an unknown data type {column_def[1]}")
+                else: raise RuntimeError(f"Column '{column_name}' has an unknown data type '{column_def[1]}'")
                 self.__tables[table_name].append(ColumnDef(name = column_name, d_type = d_type, 
                                                            primary=primary, notNull = notNull))
 

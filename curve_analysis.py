@@ -1,8 +1,97 @@
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 import logging
 logging.basicConfig(format='%(levelname)s : %(message)s', level=logging.INFO)
 
+
+
+class CostSlot(object):
+    def __init__(self, 
+                 start:datetime, 
+                 end:datetime,
+                 pricePerkWh= 0.):
+        self.__start = start
+        self.__end = end
+        self.__price = pricePerkWh
+    @property
+    def start(self): return self.__start
+    @property
+    def end(self): return self.__end
+    @property
+    def kWhPrice(self): return self.__price
+    @staticmethod
+    def replaceClock(time, replaceW):
+        return time.replace(hour= replaceW.hour, 
+                            minute = replaceW.minute,
+                            second= replaceW.second,
+                            microsecond=0)
+    def check(self, time):
+        return time.timestamp() - self.replaceClock(time, self.start).timestamp() >= 0 and \
+              self.replaceClock(time, self.end).timestamp() - time.timestamp() >= 0
+
+class CostTable(object):
+    def __str__(self):
+        out_str = ""
+        for slot in self.__slots:
+            out_str+=f"  -- {slot.start} - {slot.end}, price: {slot.kWhPrice}\n"
+        return out_str
+    def __init__(self):
+        self.__slots=[CostSlot(start=time(hour = 0, minute= 00),
+                               end=time(hour=1, minute=29, second=59),
+                               pricePerkWh= 0.1479),
+                      CostSlot(start=time(hour = 1, minute= 30),
+                               end=time(hour=6, minute=59, second=59),
+                               pricePerkWh= 0.1018),
+                      CostSlot(start=time(hour = 7, minute= 0),
+                               end=time(hour=14, minute=29, second=59),
+                               pricePerkWh= 0.1479),
+                      CostSlot(start=time(hour = 14, minute= 30),
+                               end=time(hour=16, minute=59, second=59),
+                               pricePerkWh= 0.1018),
+                      CostSlot(start=time(hour = 17, minute= 00),
+                               end=time(hour=23, minute=59, second=59),
+                               pricePerkWh= 0.1479)]
+
+    def _timeSlotNo(self, time):
+        for i in range(self.nSlots):
+            if self.__slots[i].check(time): return i
+        return self.nSlots
+    @property
+    def nSlots(self): return len(self.__slots)
+
+    def price(self, start_clock, end_clock, consumed_kwH):
+        if start_clock > end_clock:
+            raise RuntimeError(f"The start time {start_clock.strftime('%d.%m.%y %H:%M:%S')} cannot be after the end time {end_clock.strftime('%d.%m.%y %H:%M:%S')}")
+        
+        calc_price = 0.
+        interval = end_clock.timestamp() - start_clock.timestamp()
+        if start_clock.day != end_clock.day:
+            while start_clock < end_clock:
+                day_end = min(start_clock.replace(hour= 23,  minute = 59, second= 59), end_clock)
+                day_interval = start_clock.timestamp()  - day_end.timestamp()
+                calc_price += self.price(start_clock = start_clock, end_clock = day_end, consumed_kwH=consumed_kwH) * day_interval / interval
+                start_clock = day_end + timedelta(seconds=1)
+            return calc_price
+        slot_a = self._timeSlotNo(start_clock)
+        slot_b = self._timeSlotNo(end_clock)
+        if slot_a == slot_b: return self.__slots[slot_a].kWhPrice * consumed_kwH
+      
+            
+        
+        logging.info(f"Price evalation time interval: {timedelta(seconds=interval)},  electricity: {consumed_kwH},  {start_clock.strftime('%d.%m.%y %H:%M:%S')} ({slot_a}), {end_clock.strftime('%d.%m.%y %H:%M:%S')} ({slot_b})")
+        
+        if slot_b < slot_a or slot_b >= self.nSlots:
+            raise RuntimeError(f"Invalid slot configuration {slot_b} {slot_a}")
+        calc_price = 0.
+        for slot_no in range(slot_a, slot_b+1, 1):
+            slot = self.__slots[slot_no ]
+            
+            duration = min(slot.replaceClock(end_clock, slot.end), end_clock) - \
+                       max(slot.replaceClock(start_clock, slot.start), start_clock)
+            slot_price = duration.seconds * consumed_kwH * slot.kWhPrice
+            calc_price+= slot_price
+            logging.debug(f" interval duration: {duration}, {slot_price / interval:.2f}")
+        return calc_price / interval
 
 
 def setupArgParser():
@@ -45,7 +134,12 @@ def calcMeanObservable(time_series):
     mean = integrate.trapezoid(y, x=x) / interval
     return mean, sqrt(max(integrate.trapezoid( [ v**2 for v in y], x=x)/ interval -mean**2,0.)) 
 
-
+def periodBelowThreshold(time_series, threshold = 18.):
+    x = [t.timestamp() for t, _ in time_series]
+    y = [1. if x < threshold else 0.  for _, x in time_series]
+    from scipy import integrate
+    return integrate.trapezoid(y, x=x)
+    
 def summaryUpdateNeeded(start_day, record_id, ignorePastDays = True):
     now = datetime.now()
     return not ignorePastDays or len(record_id) == 0 or (now - start_day).days <= 1  or \
@@ -53,7 +147,7 @@ def summaryUpdateNeeded(start_day, record_id, ignorePastDays = True):
 
 def calcDailyAverage(device, field, ignorePastDays = True):
     logging.info(f"calcDailyAverage() - Calculate the {field.name}'s daily average recorded by {device.name}")
-    start_day = device.earliestRecord.replace(hour=0, minute=0, second =1, microsecond=0)
+    start_day = device.earliestRecord.replace(hour=0, minute=0, second =0, microsecond=0)
     end_day = device.latestRecord.replace(hour=23, minute=59, second=59, microsecond=99)
     now =datetime.now()
     while start_day < end_day:
@@ -65,73 +159,51 @@ def calcDailyAverage(device, field, ignorePastDays = True):
                                                 f"date={date}"])
                 
         if not summaryUpdateNeeded(start_day, record_id, ignorePastDays):
+            logging.info(f"caclDailyAverage() - No update needed for day {start_day.strftime('%d.%m.%y')}, {len(record_id)}")
             start_day = start_day + timedelta(days=1)
             continue
         
         record = device.payload(data_field = field,
                                 start_time = start_day,
                                 end_time = start_day + timedelta(days =1))
-        logging.debug(f"calcDailyAverage() - Fetched {len(record)} records for day {start_day.strftime('%d.%m.%y')}")
+        logging.info(f"calcDailyAverage() - Fetched {len(record)} records for day {start_day.strftime('%d.%m.%y')}")
 
         start_day = start_day + timedelta(days=1)
         if len(record) < 2:
             logging.debug("calcDailyAverage() - Too little records")        
             continue
-        mean, stdDev = calcMeanObservable(fillAuxiliaryPoints(record))
-        logging.debug(f"Calculated mean {mean} +- {stdDev}")
+        time_series = fillAuxiliaryPoints(record)
+        mean, stdDev = calcMeanObservable(time_series)
+
+        table_columns = [ "mean", "stdDev" ,"nPoints", "lastUpdate"]
+        table_values = [mean, stdDev, len(record), int(datetime.now().timestamp())]
+        
+        logging.info(f"Calculated mean {mean:.2f} +- {stdDev:.2f}")
+        if field.name.find("temperature") != -1:
+            interval = periodBelowThreshold(time_series)
+            table_values+=[interval]
+            table_columns+=["alarmPeriod"]
+            logging.info(f"Time below 18 degree {timedelta(seconds=interval)}")
+
+
         if len(record_id) == 0:
             device.sqlDB.insertRecord(tableName="average_values",
-                                       columns=["device", "variable", "mean", "stdDev" , "date" , "nPoints", "lastUpdate"],
-                                       record=[device.device_id, field.id, mean, stdDev, date, len(record), int(datetime.now().timestamp())])
+                                       columns=["device", "variable", "date"] + table_columns,
+                                       record=[device.device_id, field.id, date] + table_values)
         else:
             device.sqlDB.updateRecord(tableName="average_values",
-                                       columns=[ "mean", "stdDev" ,"nPoints", "lastUpdate"],
-                                       record=[mean, stdDev, len(record), int(datetime.now().timestamp())],
+                                       columns=table_columns,
+                                       record=table_values,
                                        entry_id=record_id[0][0])
 
-class CostSlot(object):
-    def __init__(self, 
-                 start:datetime, 
-                 pricePerkWh= 0.):
-        self.__start = start
-        self.__price = pricePerkWh
-    @property
-    def start(self): return self.__start
-    @property
-    def kWhPrice(self): return self.__price
-    def check(self, time):
-        check_time = time.relpace(hour= self.start.hour, 
-                                  minute = self.start.minute,
-                                  second= self.start.second)
-        return time - check_time > 0
-
-class CostTable(object):
-    def __init__(self, slots = []):
-        self.__slots=[]
-
-
-    def _timeSlotNo(self, time):
-        for i in range(len(self.__slots)):
-            if self.__slots[i].check(time): return i
-        return len(self.__slots)
-
-
-
-def electricityPrice(time_point: datetime):
-    if (time_point.hour == 14 and time_point.minute >=30) or \
-       (time_point.hour >= 15 and time_point.hour < 17) or \
-       (time_point.hour == 1 and time_point.minute >=30) or \
-       (time_point.hour == 2 and time_point.hour < 7): return 0.1018
-    return 0.1479
-
-
 def calcCosts(device, field, ignorePastDays = True):
-    logging.info(f"calcCosts() - Calculate the consumpion and costs recorded by {device.name}")
+    logging.info(f"calcCosts() - Calculate the consumption and costs recorded by {device.name}")
     start_day = device.earliestRecord.replace(hour=0, minute=0, second =1, microsecond=0)
     end_day = device.latestRecord.replace(hour=23, minute=59, second=59, microsecond=99)
     now =datetime.now()
     total_costs =0.
     while start_day < end_day:
+        logging.debug(f"calcCosts() - {start_day} until {end_day}")
         date = int(start_day.timestamp())
 
         record_id =  device.sqlDB.fetchFromTable(tableName="average_values",
@@ -144,27 +216,30 @@ def calcCosts(device, field, ignorePastDays = True):
             start_day = start_day + timedelta(days=1)
             continue
 
+        ### Each add_ele value is the energy consumed since the previous reading -> no edge padding,
+        ### otherwise the first / last reading of the day would be counted twice
         record = device.payload(data_field = field,
                                 start_time = start_day,
-                                end_time = start_day + timedelta(days =1))
+                                end_time = start_day + timedelta(days =1),
+                                padEdges = False)
 
         if len(record) < 2:
-            logging.debug("calcCosts() - Too little records")  
+            logging.debug("calcCosts() - Too little records")
             start_day = start_day + timedelta(days=1)
             continue
 
         consumption = 0.
         costs = 0.
         last_time = record[0][0]
+        electric_tarif = CostTable()
+        logging.debug(f"calcCosts() - Cost table\n{electric_tarif}")
         for time, consumed in record:
-            if electricityPrice(last_time) == electricityPrice(time):
-                costs += consumed * electricityPrice(last_time)
-            else: ### To be refined
-                costs+=consumed *max(electricityPrice(last_time), electricityPrice(time))
+            costs+= electric_tarif.price(start_clock = last_time, end_clock = time, consumed_kwH = consumed)
             consumption+=consumed
-        logging.info(f"calcCosts() - Fetched {len(record)} records for day {start_day.strftime('%d.%m.%y')}. Consumed {consumption:.3f} kWh --> Costs: {costs:.2f}")
-        start_day = start_day + timedelta(days=1)
+            last_time = time
+        logging.debug(f"calcCosts() - Fetched {len(record)} records for day {start_day.strftime('%d.%m.%y')}. Consumed {consumption:.3f} kWh --> Costs: {costs:.2f}")
 
+        start_day = start_day + timedelta(days=1)
         if len(record_id) == 0:
             device.sqlDB.insertRecord(tableName="average_values",
                                        columns=["device", "variable", "mean", "stdDev" , "date" , "nPoints", "lastUpdate"],

@@ -31,6 +31,9 @@ class DeviceVariable(object):
         self.__max = variable_record[5]
         self.__discrete = variable_record[6]
         self.__conversion = variable_record[7]
+        self.__label = variable_record[8]
+
+        if self.__label is None: self.__label =""
 
         if isinstance(self.__discrete, str):
             self.__discrete = self.__discrete.split(",")
@@ -62,7 +65,8 @@ class DeviceVariable(object):
     def conversion(self): return self.__conversion
     @property
     def unit(self): return self.__unit
-
+    @property
+    def label(self): return self.__label
 
 class Database(object):
     def __init__(self, database_path):
@@ -103,6 +107,7 @@ class Database(object):
             self.sqlDB.createTable("record_variables",             
             [ColumnDef(name="id", d_type = DataTypes.INT_TYPE, primary=True),
             ColumnDef(name="name", d_type = DataTypes.TEXT_TYPE, notNull=True),
+            ColumnDef(name="label", d_type = DataTypes.TEXT_TYPE, notNull=False),
             ColumnDef(name="type", d_type = DataTypes.TEXT_TYPE, notNull=True),
             ColumnDef(name="unit", d_type = DataTypes.TEXT_TYPE, notNull=False),
             ColumnDef(name="min", d_type = DataTypes.REAL_TYPE, notNull=False),
@@ -145,6 +150,7 @@ class Database(object):
         ### date: The date for which the average is calculated
         ### mean: The mean value
         ### stdDev: The standard deviation
+        ### alarmTime: The time interval where the temperature or humidity are too low
         ### n_points: The number of data points
         if "average_values" not in self.sqlDB.tableNames:
             self.sqlDB.createTable("average_values",
@@ -155,6 +161,7 @@ class Database(object):
                                ref_table="devices", ref_column="id"),
                      ColumnDef(name="mean", d_type = DataTypes.REAL_TYPE, notNull = True),
                      ColumnDef(name="stdDev", d_type = DataTypes.REAL_TYPE, notNull = True),
+                     ColumnDef(name="alarmPeriod", d_type= DataTypes.INT_TYPE, notNull = False),
                      ColumnDef(name="date", d_type = DataTypes.REAL_TYPE, notNull = True),
                      ColumnDef(name="nPoints", d_type = DataTypes.INT_TYPE, notNull = True),
                      ColumnDef(name="lastUpdate", d_type = DataTypes.INT_TYPE, notNull = True)])
@@ -315,7 +322,7 @@ class Database(object):
         
         conditions = [" OR ".join([f"{self.sqlDB.primaryKey('record_variables').column_name}={id}" for id in variable_ids])] if len(variable_ids) else []
         variable_record = self.sqlDB.fetchFromTable(tableName="record_variables",
-                                                  columns=["id", "name", "type", "unit", "min", "max", "discrete", "conversion"],
+                                                  columns=["id", "name", "type", "unit", "min", "max", "discrete", "conversion", "label"],
                                                   conditions=conditions)
         if len(variable_ids) > 0 and len(variable_record) != len(variable_ids):
             raise RuntimeError("SmartHomeDevice() - Cannot retrieve the associated variables")  
