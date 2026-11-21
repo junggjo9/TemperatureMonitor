@@ -166,7 +166,8 @@ class DeviceData(object):
     def _append_point(self, 
                       d_type:str, 
                       time_stamp: int,
-                      value: str):
+                      value: str,
+                      log = False):
         ### first find out which data point is to be appended
         type_id = -1
         for idx in range(0, len(self.__data_types)):
@@ -185,7 +186,8 @@ class DeviceData(object):
         if len(self.__data[d_type]) == before:
             return False
         data_time = datetime.fromtimestamp(time_stamp /1000)
-        logging.info(f"Append data point recorded @{data_time.strftime("%d.%m.%y  %H:%M:%s")} to {d_type} with {value}")
+        if log:
+            logging.info(f"Append data point recorded @{data_time.strftime("%d.%m.%y  %H:%M")} to {d_type} with {value}")
         
         if self.__time_last.timestamp()* 1000 < time_stamp:
             self.__time_last = data_time
@@ -240,7 +242,7 @@ class DeviceData(object):
         logs = result['result']["logs"]
         logging.info(f"Retrieved {len(logs)} entries from the database")
         added = 0
-        last_entry= -1
+        last_entry = 0
         earliest_entry = datetime.now().timestamp()
         for entry in logs:
             if not "code" in entry.keys():
@@ -253,12 +255,13 @@ class DeviceData(object):
                 continue
 
             d_value = entry["value"]
-            if self._append_point(d_type, d_time, d_value):
+            if self._append_point(d_type, d_time, d_value, log = True):
                added+=1
-               earliest_entry = min(d_time, earliest_entry)
-               last_entry     = max(d_time, last_entry)
-        if added > 0:
-            logging.info(f"Fetched range {datetime.fromtimestamp(earliest_entry/1000)} until {datetime.fromtimestamp(last_entry/1000)}")
+            earliest_entry = min(d_time /1000, earliest_entry)
+            last_entry     = max(d_time / 1000, last_entry)
+        print (timedelta(seconds= start_time.timestamp() -earliest).minutes)
+        exit(1)
+        logging.info(f"Fetched range {datetime.fromtimestamp(earliest_entry)} until {datetime.fromtimestamp(last_entry)}")
         return added
 
 
