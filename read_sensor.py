@@ -174,18 +174,19 @@ class DeviceData(object):
                 type_id = idx
                 break
         if type_id == -1:
-            logging.debug(f" Do not store data of {d_type} with value {value} evaluated at {time_stamp}")
+            logging.debug(f"Do not store data of {d_type} with value {value} evaluated at {time_stamp}")
             return False
         ### Check if the value can be converted to an integer
         if self.__data_types[idx].data_type == "Integer":
             value = int(value)
         before = len(self.__data[d_type])
         self.__data[d_type].add((time_stamp, value))
+        
         if len(self.__data[d_type]) == before:
             return False
         data_time = datetime.fromtimestamp(time_stamp /1000)
-
-        #print ( f" Append data point {(data_time.strftime("%d.%m.%y  %H:%M"), value)}")
+        logging.info(f"Append data point recorded @{data_time.strftime("%d.%m.%y  %H:%M:%s")} to {d_type} with {value}")
+        
         if self.__time_last.timestamp()* 1000 < time_stamp:
             self.__time_last = data_time
 
@@ -237,7 +238,10 @@ class DeviceData(object):
             logging.warning(f"Failed to retrieve data from cloud {result}")
             return 0
         logs = result['result']["logs"]
+        logging.info(f"Retrieved {len(logs)} entries from the database")
         added = 0
+        last_entry= -1
+        earliest_entry = datetime.now().timestamp()
         for entry in logs:
             if not "code" in entry.keys():
                 continue
@@ -251,6 +255,10 @@ class DeviceData(object):
             d_value = entry["value"]
             if self._append_point(d_type, d_time, d_value):
                added+=1
+                earliest_entry = min(d_time, earliest_entry)
+                last_entry     = max(d_time, last_entry)
+        if added > 0:
+            logging.info(f"Fetched range {datetime.fromtimestamp(earliest_entry/1000)} until {datetime.fromtimestamp(last_entry/1000)}")
         return added
 
 
