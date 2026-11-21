@@ -9,4 +9,9 @@ echo ${log_file}
 
 
 python sync_database.py >${log_file} 2>&1
+result=$?
+if [ ${result} -ne 0 ];then
+    head ../compile.log
+    exit 1
+fi
 python curve_analysis.py >> ${log_file} 2>&1

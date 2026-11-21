@@ -148,7 +148,7 @@ class DeviceData(object):
         start_time = datetime.now()
         lock_file = f"{db_folder}/.{self.name}.lock"
         while exists(lock_file) and len(self.__lock_file) == 0:
-            logging.info(f"Cannot open {self.__db_file} as its still open by another process")
+            logging.info(f"Cannot open {self.__db_file} as it's still open by another process")
             sleep(15)
             if datetime.now() -  time_out > start_time:
                 raise RuntimeError("Time out reached")
@@ -206,25 +206,13 @@ class DeviceData(object):
 
         ### If no data is present we need to download the entire log stream
  
-        downloaded = 0
         #### Start first with the most recent data
         end_cursor = datetime.now()
-        start_cursor = datetime.now() - timedelta(days=7)
- 
-        for iter in range(50):
-            fetched = self._download_data(cloud_stream = cloud_stream, 
-                                          start_time = end_cursor - timedelta(days =1), 
+        downloaded = self._download_data(cloud_stream = cloud_stream, 
+                                          start_time = end_cursor - timedelta(days=14), 
                                           end_time = end_cursor)
-            downloaded +=fetched
-            logging.info(f"Got {fetched} entries from the database")
-
-            end_cursor = end_cursor - timedelta(hours=20)
-
-            if fetched == 0 and end_cursor < start_cursor: 
-                break
-            sleep(5 + (iter*5)%25)
-        #### The data has been queried before no need to try again
-        return downloaded
+        logging.info(f"Loaded {fetched} new entries from cloud.")
+       return downloaded
 
     def _download_data(self, cloud_stream, start_time, end_time, chunk_size = 1000):
 
@@ -240,7 +228,8 @@ class DeviceData(object):
             logging.warning(f"Failed to retrieve data from cloud {result}")
             return 0
         logs = result['result']["logs"]
-        logging.info(f"Retrieved {len(logs)} entries from the database")
+        nEntries = len(logs)
+        logging.debug(f"Fetched {nEntries} entries from the database")
         added = 0
         last_entry = 0
         earliest_entry = datetime.now().timestamp()
@@ -259,9 +248,18 @@ class DeviceData(object):
                added+=1
             earliest_entry = min(d_time /1000, earliest_entry)
             last_entry     = max(d_time / 1000, last_entry)
-        print (timedelta(seconds= start_time.timestamp() -earliest).minutes)
-        exit(1)
-        logging.info(f"Fetched range {datetime.fromtimestamp(earliest_entry)} until {datetime.fromtimestamp(last_entry)}")
+        
+        if nEntries > 5 and (datetime.fromtimestamp(earliest_entry) - start_time).seconds > 60:
+            sleep(25)
+            added+=self._download_data(cloud_stream = cloud_stream, 
+                                       start_time = start_time, 
+                                       end_time = datetime.fromtimestamp(earliest_entry - 1))
+        if nEntries > 5 and (end_time - datetime.fromtimestamp(last_entry)).seconds > 60:
+            sleep(25)
+            added+=self._download_data(cloud_stream = cloud_stream, 
+                                       start_time = datetime.fromtimestamp(last_entry+1), 
+                                       end_time = end_time)
+        logging.debug(f"Records span the period {datetime.fromtimestamp(earliest_entry).strftime('%d.%m.%y %H:%M')} until {datetime.fromtimestamp(last_entry).strftime('%d.%m.%y %H:%M')}")
         return added
 
 

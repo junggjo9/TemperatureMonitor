@@ -206,7 +206,7 @@ class Database(object):
                 logging.warning(f"insertDataRecord() - It was inserted at {datetime.fromtimestamp(record_exists[0][1])}. Cannot insert {value}.")
             return False
         insert_time = int(datetime.now().timestamp())
-        logging.debug(f"storeRecord() - Append new record {self.variable_name(variable)} to {self.device_name(device)} with value {value} recored at {record_time}")
+        logging.info(f"storeRecord() - Append new record {self.variable_name(variable)} to {self.device_name(device)} with value {value} recored at {record_time}")
 
         self.sqlDB.insertRecord(tableName="data_records",
                                 columns=["device", "variable", "record_time", "insert_time", "value"],

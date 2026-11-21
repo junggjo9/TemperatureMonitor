@@ -9,6 +9,13 @@ echo ${log_file}
 
 python read_sensor.py > ${log_file} 2>&1
 
+result=$?
+if [ ${result} -ne 0 ];then
+    head ../compile.log
+    exit 1
+fi
+
+
 #### Update the data records
 cp  /var/www/html/temperature_flat/records/*.json /home/user/TemperatureMonitoring/data_records/
 
