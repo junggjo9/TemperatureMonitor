@@ -2,16 +2,19 @@
 
 source /home/user/TemperatureMonitoring/python_env/bin/activate
 cd /home/user/TemperatureMonitoring/
-python read_sensor.py
+
+now=$(python -c "from datetime import datetime; print(datetime.now().strftime('%d%m%y_%H%M'))")
+log_file="/var/www/html/temperature_flat/logs/json_${now}.log"
+echo ${log_file}
+
+python read_sensor.py > ${log_file} 2>&1
 
 #### Update the data records
 cp  /var/www/html/temperature_flat/records/*.json /home/user/TemperatureMonitoring/data_records/
 
-now=`date`
 #### Push to git
 git pull
-git commit -am "Update of the data records ${now}"
+git commit -am "Update of the data records ${l_name}" >> ${log_file} 2>&1
 git push
 
-### Temporarily add the git fetch
-python copy_from_json.py
+python copy_from_json.py  >> ${log_file} 2>&1

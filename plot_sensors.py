@@ -314,23 +314,4 @@ if __name__== "__main__":
     ### Draw all collected plots
     drawPlots(plots)
         
-       
-
-        #     if len(time_series) == 0: continue
-        #     x = [datetime.fromtimestamp(t) for t, _ ,__ in time_series]
-        #     y = [x  for _, x,__ in time_series]
-        #     e = [e  for _,__, e in time_series]
-        # 	### Define the legend
-        #     ax.errorbar(x, y, yerr=e, xerr=timedelta(hours=12), fmt="^", markersize=10, label="{name} room".format(name = dev.name))
-        #     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-        # ax.set_title(f"{args.curve} evolution in G503 - Daily average last update {now.strftime('%d.%m.%y %H:%M')}")
-        # ax.set_xlabel("time")
-        # ax.set_ylabel(f"{args.curve} [{unit}]")
-        # ax.legend()  
-        # ax.grid(True)
-
-        # plt.tight_layout()
-        # figure_name =f"{args.outFolder}/average_{d_field.name}" 
-        # plt.savefig(f"{figure_name}.pdf", dpi=300)
-        # logging.info(f"Saved {figure_name}.pdf")
-        # plt.close(fig)
+ 
