@@ -255,8 +255,8 @@ class DeviceData(object):
             d_value = entry["value"]
             if self._append_point(d_type, d_time, d_value):
                added+=1
-                earliest_entry = min(d_time, earliest_entry)
-                last_entry     = max(d_time, last_entry)
+               earliest_entry = min(d_time, earliest_entry)
+               last_entry     = max(d_time, last_entry)
         if added > 0:
             logging.info(f"Fetched range {datetime.fromtimestamp(earliest_entry/1000)} until {datetime.fromtimestamp(last_entry/1000)}")
         return added
