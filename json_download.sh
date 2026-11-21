@@ -14,7 +14,7 @@ cp  /var/www/html/temperature_flat/records/*.json /home/user/TemperatureMonitori
 
 #### Push to git
 git pull
-git commit -am "Update of the data records ${l_name}" >> ${log_file} 2>&1
+git commit -am "Update of the data records ${now}" >> ${log_file} 2>&1
 git push
 
 python copy_from_json.py  >> ${log_file} 2>&1
