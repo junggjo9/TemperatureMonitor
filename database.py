@@ -5,7 +5,9 @@ from datetime import datetime, timedelta
 
 from dbConnection import QueryOrder, ColumnDef, DbConnection, DataTypes, Order
 from time import sleep
-logging.basicConfig(format='%(levelname)s : %(message)s', level=logging.INFO)
+logging.basicConfig(format="%(asctime)s (%(levelname)s) : %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                    level=logging.INFO)
 
 
 def id_generator(size=45, chars=string.ascii_letters + string.digits):

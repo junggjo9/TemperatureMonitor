@@ -6,6 +6,9 @@ from datetime import datetime, timedelta
 from time import sleep
 import logging
 
+logging.basicConfig(format="%(asctime)s (%(levelname)s) : %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                    level=logging.INFO)
 
 
 class DataFormat(object):
@@ -124,7 +127,7 @@ class DeviceData(object):
                      latest = datetime.now(),
                      calibrator = None):
         if len([0 for x in self.data_fields if field.name == x.name]) == 0:
-            print(f"Data field {field} is unknown")
+            logging.warning(f"Data field {field} is unknown")
             return []
         if not calibrator:
             calibrator = lambda x: x
@@ -139,13 +142,13 @@ class DeviceData(object):
         ### Check whether a device file is stored in the directory
         self.__db_file = f"{db_folder}/{self.name}.json"
         if not os.path.exists(self.__db_file):
-            print (f"No data has been stored for {self.name}")
+            logging.debug(f"No data has been stored for {self.name}")
             return 0
 
         start_time = datetime.now()
         lock_file = f"{db_folder}/.{self.name}.lock"
         while exists(lock_file) and len(self.__lock_file) == 0:
-            print(f"Cannot open {self.__db_file} as its still open by another process")
+            logging.info(f"Cannot open {self.__db_file} as its still open by another process")
             sleep(15)
             if datetime.now() -  time_out > start_time:
                 raise RuntimeError("Time out reached")
@@ -171,7 +174,7 @@ class DeviceData(object):
                 type_id = idx
                 break
         if type_id == -1:
-            print (f" Do not store data of {d_type} with value {value} evaluated at {time_stamp}")
+            logging.debug(f" Do not store data of {d_type} with value {value} evaluated at {time_stamp}")
             return False
         ### Check if the value can be converted to an integer
         if self.__data_types[idx].data_type == "Integer":
@@ -193,7 +196,7 @@ class DeviceData(object):
 
     #### Query the data from the online logs
     def fetch_from_cloud(self, cloud_stream):
-        print ("Device {dev_name} has data from {start} until {end}".format(
+        logging.info("Device {dev_name} has data from {start} until {end}".format(
             dev_name = self.name, 
             start = self.first_record_time.strftime('%d.%m.%y %H:%M'),
             end = self.latest_record_time.strftime('%d.%m.%y %H:%M')))
@@ -210,7 +213,7 @@ class DeviceData(object):
                                           start_time = end_cursor - timedelta(days =1), 
                                           end_time = end_cursor)
             downloaded +=fetched
-            print (f"Got {fetched} entries from the database")
+            logging.info(f"Got {fetched} entries from the database")
 
             end_cursor = end_cursor - timedelta(hours=20)
 
@@ -222,7 +225,7 @@ class DeviceData(object):
 
     def _download_data(self, cloud_stream, start_time, end_time, chunk_size = 1000):
 
-        print ("Fetch new data from the cloud for sensor {name} for the time span from {start} unil {end}".format(
+        logging.info("Fetch new data from the cloud for sensor {name} for the time span from {start} unil {end}".format(
                 name = self.name, start = start_time.strftime('%d.%m.%y %H:%M'), 
                 end = end_time.strftime('%d.%m.%y %H:%M')))
         start_timestamp = int(start_time.timestamp())
@@ -231,8 +234,8 @@ class DeviceData(object):
                                     size=chunk_size, evtype=7)
  
         if not result["success"] == True:
-            print(f"Failed to retrieve data from cloud {result}")
-            exit(1)
+            logging.warning(f"Failed to retrieve data from cloud {result}")
+            return 0
         logs = result['result']["logs"]
         added = 0
         for entry in logs:
@@ -242,7 +245,7 @@ class DeviceData(object):
             d_time = int(entry["event_time"])
             d_status = int(entry["status"])
             if d_status != 1:
-                print(f"Skip data point {entry}")
+                logging.warning(f"Skip data point {entry}")
                 continue
 
             d_value = entry["value"]
@@ -253,7 +256,7 @@ class DeviceData(object):
 
     def update_db(self):
         if len(self.__db_file) == 0:
-            print(f"No external database defined to store data of {self.name}")
+            logging.warning(f"No external database defined to store data of {self.name}")
             return
         persitify = {}
         persitify["data"] = {}
@@ -274,12 +277,12 @@ class DeviceData(object):
 
 def loadSensorsFromJSON(json_config):
     if not os.path.exists(json_config):
-        print(f"The device JSON configuration file {json_config} does not exist")
+        logging.error(f"The device JSON configuration file {json_config} does not exist")
         exit(1)
     devices = []
     with open('devices.json', 'r') as f:
          for entry in json.load(f):
-            print(f"Instantiate new device {entry['name']}")
+            logging.debug(f"Instantiate new device {entry['name']}")
             newDevice = DeviceData( name = entry["name"],
                                     id = entry["id"],
                                     mac = entry["mac"],
@@ -309,18 +312,18 @@ if __name__ =="__main__":
     args = setupArgParser().parse_args()
 
     if not os.path.exists(args.dbFolder):
-        print(f" Create database directory {args.dbFolder}")
+        logging.debug(f" Create database directory {args.dbFolder}")
         if not os.mkdir(args.dbFolder):
-            print("Failed to create database directory")
+            logging.warning("Failed to create database directory")
     else:
-        print(f"Search for databases from {args.dbFolder}")
+        logging.debug(f"Search for databases from {args.dbFolder}")
 
     devices = loadSensorsFromJSON(args.deviceJSON)
 
     try:
         cloud = tinytuya.Cloud()
     except Exception as e:
-        print(f"Failed to initialize cloud connection {e}")
+        logging.error(f"Failed to initialize cloud connection {e}")
         exit(1)
 
     for device in devices:

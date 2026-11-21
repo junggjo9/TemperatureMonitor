@@ -1,40 +1,14 @@
 #!/usr/bin/env python3
-"""
-reconstruct_history.py
-
-Walks the full git history of a JSON data file, collects every record
-that ever existed (including ones later deleted), deduplicates by
-(timestamp, value), and writes a single consolidated output file.
-
-Preserves top-level metadata fields (name, mac_address, data_types, etc.)
-from the most recent commit.
-
-Usage:
-    python reconstruct_history.py \
-        --repo   /path/to/your/repo \
-        --file   data/logs.json \
-        --output consolidated.json
-
-Expected file structure:
-    {
-      "data": {
-        "va_temperature":    [[timestamp, value], ...],
-        "va_humidity":       [[timestamp, value], ...],
-        "battery_percentage":[[timestamp, value], ...]
-      },
-      "data_types": { ... },   <- preserved from latest commit
-      "name": "Bath",          <- preserved from latest commit
-      "mac_address": ""        <- preserved from latest commit
-    }
-"""
-
 import argparse
 import json
 import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
-
+import logging
+logging.basicConfig(format="%(asctime)s (%(levelname)s) : %(message)s",
+                         datefmt="%Y-%m-%d %H:%M:%S",
+                         level=logging.INFO)
 
 # ── git helpers ───────────────────────────────────────────────────────────────
 
@@ -102,7 +76,7 @@ if __name__ == "__main__":
                            commit = commit, 
                            file_path = git_db), f)
             device.load_local_db(tmp_folder)
-            print ("Device {dev_name} has data from {start} until {end}".format(
+            logging.info("Device {dev_name} has data from {start} until {end}".format(
             dev_name = device.name, 
             start = device.first_record_time.strftime('%d.%m.%y %H:%M'),
             end = device.latest_record_time.strftime('%d.%m.%y %H:%M')))

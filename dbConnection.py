@@ -5,7 +5,9 @@ from datetime import datetime, timedelta
 from os.path import exists, isdir
 from os import system
 import sqlite3, logging
-logging.basicConfig(format='%(levelname)s : %(message)s', level=logging.INFO)
+logging.basicConfig(format="%(asctime)s (%(levelname)s) : %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                    level=logging.INFO)
 
 
 class DataTypes(Enum):

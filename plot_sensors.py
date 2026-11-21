@@ -7,6 +7,9 @@ from os import system
 from os.path import exists
 import logging
 
+logging.basicConfig(format="%(asctime)s (%(levelname)s) : %(message)s",
+                         datefmt="%Y-%m-%d %H:%M:%S",
+                         level=logging.INFO)
 
 class Histogram(object):
     def __init__(self, times=[], values=[], xerr=[], yerr=[],  label=""):
