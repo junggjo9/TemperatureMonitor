@@ -142,7 +142,7 @@ def setupArgParser():
     from sync_database import setupArgParser as argParserBase
     parser = argParserBase()
     parser.add_argument("--curve", help="Which curve to plot",
-                        choices=["temperature", "humidity"], default="temperature")
+                        choices=["temperature", "humidity", "voltage"], default="temperature")
     parser.add_argument("--plotPeriod" , help="Maximum period to show on the temperature curves in days",
                         type=int, default=7)
     parser.add_argument("--outFolder", help="Folder where the output plots will be stored",

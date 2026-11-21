@@ -211,8 +211,8 @@ class DeviceData(object):
         downloaded = self._download_data(cloud_stream = cloud_stream, 
                                           start_time = end_cursor - timedelta(days=14), 
                                           end_time = end_cursor)
-        logging.info(f"Loaded {fetched} new entries from cloud.")
-       return downloaded
+        logging.info(f"Loaded {downloaded} new entries from cloud.")
+        return downloaded
 
     def _download_data(self, cloud_stream, start_time, end_time, chunk_size = 1000):
 
@@ -249,12 +249,12 @@ class DeviceData(object):
             earliest_entry = min(d_time /1000, earliest_entry)
             last_entry     = max(d_time / 1000, last_entry)
         
-        if nEntries > 5 and (datetime.fromtimestamp(earliest_entry) - start_time).seconds > 60:
+        if nEntries > 1 and (datetime.fromtimestamp(earliest_entry) - start_time).seconds > 10:
             sleep(25)
             added+=self._download_data(cloud_stream = cloud_stream, 
                                        start_time = start_time, 
                                        end_time = datetime.fromtimestamp(earliest_entry - 1))
-        if nEntries > 5 and (end_time - datetime.fromtimestamp(last_entry)).seconds > 60:
+        if nEntries > 1 and (end_time - datetime.fromtimestamp(last_entry)).seconds > 10:
             sleep(25)
             added+=self._download_data(cloud_stream = cloud_stream, 
                                        start_time = datetime.fromtimestamp(last_entry+1), 
@@ -335,8 +335,8 @@ if __name__ =="__main__":
         logging.error(f"Failed to initialize cloud connection {e}")
         exit(1)
 
-    for device in devices:
-        device.load_local_db(args.dbFolder)
-        if device.fetch_from_cloud(cloud) >0:
-            device.update_db()
-        device = None
+    for dev in range(len(devices)):
+        devices[dev].load_local_db(args.dbFolder)
+        if devices[dev].fetch_from_cloud(cloud) >0:
+            devices[dev].update_db()
+        devices[dev] = None

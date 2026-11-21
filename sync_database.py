@@ -158,17 +158,12 @@ class SmartHomeDevice(object):
         ### If no data is present we need to download the entire log stream
         downloaded = 0
   
-        start_time = datetime.now() - timedelta(days =1)
+        end_time = datetime.now() 
         #### Start first with the most recent data
-        for iter in range(50):
-            fetched = self._downloadData(cloud_stream = cloud_stream, 
-                                         start_time = start_time, 
-                                         end_time = start_time + timedelta(hours = 25))
-            downloaded +=fetched
-            logging.info(f"Downloaded {fetched} new data points")
-            start_time += timedelta(days=2)
-            if start_time > datetime.now(): break
-            sleep(20 + iter % 20)
+        downloaded = self._downloadData(cloud_stream = cloud_stream, 
+                                        start_time = end_time - timedelta(days=2), 
+                                        end_time = end_time)
+        logging.info(f"Downloaded {downloaded} new data points")
         return downloaded
 
     def _downloadData(self, cloud_stream, start_time, end_time):
@@ -183,7 +178,12 @@ class SmartHomeDevice(object):
             logging.error(f"Failed to retrieve data from cloud {result}")
             exit(1)
         logs = result['result']["logs"]
+        nEntries = len(logs)
+        logging.debug(f"Fetched {nEntries} entries from the database")
         added = 0
+        last_entry = 0
+        earliest_entry = datetime.now().timestamp()
+
         for entry in logs:
             if not "code" in entry.keys():
                 continue
@@ -196,13 +196,29 @@ class SmartHomeDevice(object):
 
             d_value = entry["value"]
 
+            earliest_entry = min(d_time /1000, earliest_entry)
+            last_entry     = max(d_time / 1000, last_entry)
+
+
             field = self.dataField(field_name = d_type)
             if field is None: continue
 
             if self.storeRecord(data_field = field, 
                                 record_time = datetime.fromtimestamp(d_time/ 1000), 
                                 value = d_value):
-               added+=1
+                added+=1
+        if nEntries > 1 and (datetime.fromtimestamp(earliest_entry) - start_time).seconds > 10:
+            sleep(25)
+            added+=self._downloadData(cloud_stream = cloud_stream, 
+                                       start_time = start_time, 
+                                       end_time = datetime.fromtimestamp(earliest_entry - 1))
+        if nEntries > 1 and (end_time - datetime.fromtimestamp(last_entry)).seconds > 10:
+            sleep(25)
+            added+=self._downloadData(cloud_stream = cloud_stream, 
+                                       start_time = datetime.fromtimestamp(last_entry+1), 
+                                       end_time = end_time)
+        logging.debug(f"Records span the period {datetime.fromtimestamp(earliest_entry).strftime('%d.%m.%y %H:%M')} until {datetime.fromtimestamp(last_entry).strftime('%d.%m.%y %H:%M')}")
+
         return added
 
 def setupSmartDevices(db_file: str, device_json: str = ""):
@@ -220,26 +236,7 @@ def setupSmartDevices(db_file: str, device_json: str = ""):
     #### mA -> A 
     dbObj.defineConversion("cur_current", 0.001)
     ### W -> kW with one digit precision
-    dbObj.defineConversion("cur_power", 0.0001)
-    
-    ### Augment the tables
-    if len (dbObj.sqlDB.columnDataTypes(tableName = "record_variables", 
-                                        columns= ["label"])) == 0:
-        from dbConnection import DataTypes                    
-        query = f"ALTER TABLE record_variables ADD COLUMN label {DataTypes.TEXT_TYPE}"
-        dbObj.sqlDB.instance.execute(query)
-        devices = []
-        dbObj = None
-        return setupSmartDevices(db_file, device_json)
-    if len (dbObj.sqlDB.columnDataTypes(tableName = "average_values", 
-                                        columns= ["alarmPeriod"])) == 0:
-        from dbConnection import DataTypes                    
-        query = f"ALTER TABLE average_values ADD COLUMN alarmPeriod {DataTypes.INT_TYPE} NULL;"
-        dbObj.sqlDB.instance.execute(query)
-        devices = []
-        dbObj = None
-        return setupSmartDevices(db_file, device_json)     
-    
+    dbObj.defineConversion("cur_power", 0.0001)  
     return devices
 
 def setupArgParser():
@@ -265,7 +262,8 @@ if __name__ == "__main__":
         logging.error(f"Failed to initialize cloud connection {e}")
         exit(1)
 
-    for dev in devices:
-        dev.downloadFromCloud(cloud_stream = cloud)
+    for dev in range(len(devices)):
+        devices[dev].downloadFromCloud(cloud_stream = cloud)
+        devices[dev] = None
 
 
