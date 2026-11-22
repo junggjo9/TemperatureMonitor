@@ -198,7 +198,7 @@ class DeviceData(object):
         return True
 
     #### Query the data from the online logs
-    def fetch_from_cloud(self, cloud_stream):
+    def fetch_from_cloud(self, cloud_stream, days = 14):
         logging.info("Device {dev_name} has data from {start} until {end}".format(
             dev_name = self.name, 
             start = self.first_record_time.strftime('%d.%m.%y %H:%M'),
@@ -209,7 +209,7 @@ class DeviceData(object):
         #### Start first with the most recent data
         end_cursor = datetime.now()
         downloaded = self._download_data(cloud_stream = cloud_stream, 
-                                          start_time = end_cursor - timedelta(days=14), 
+                                          start_time = end_cursor - timedelta(days=days), 
                                           end_time = end_cursor)
         logging.info(f"Loaded {downloaded} new entries from cloud.")
         return downloaded
@@ -286,15 +286,24 @@ class DeviceData(object):
         with open(self.__db_file, 'w') as f:
             json.dump(persitify, f, indent=2)
 
-def loadSensorsFromJSON(json_config):
+def loadSensorsFromJSON(json_config, restrict=[]):
     if not os.path.exists(json_config):
         logging.error(f"The device JSON configuration file {json_config} does not exist")
         exit(1)
     devices = []
+    nRestricted = 0
+    if len(restrict) > 0:
+        logging.info("Only setup the devices {dev}".format(dev=",".join(restrict)))
     with open('devices.json', 'r') as f:
          for entry in json.load(f):
-            logging.debug(f"Instantiate new device {entry['name']}")
-            newDevice = DeviceData( name = entry["name"],
+            dev_name = entry['name']
+            if len(restrict) > 0:
+                if dev_name not in restrict:
+                    logging.debug(f"Skip instantiation of {dev_name}")
+                    continue
+                nRestricted+=1
+            logging.debug(f"Instantiate new device {dev_name}")
+            newDevice = DeviceData( name = dev_name,
                                     id = entry["id"],
                                     mac = entry["mac"],
                                     uuid = entry["uuid"],
@@ -303,6 +312,9 @@ def loadSensorsFromJSON(json_config):
                                     icon = entry["icon"],
                                     mapping_data = entry["mapping"])
             devices.append(newDevice)
+    if nRestricted != len(restrict):
+        logging.error(f"Only {nRestricted} out of the {len(restrict)} selected devices were found. please check input")
+        exit(1)
     return devices
 
 def setupArgParser():
@@ -316,6 +328,8 @@ def setupArgParser():
                         default="tinytuya.json")
     parser.add_argument("--dbFolder", help="Directory where the JSON database is stored",
                         default="/var/www/html/temperature_flat/records/")
+    parser.add_argument("--downloadOnly", default=[], nargs="+",
+                        help="Download data only for the listed devices.")
     return parser
 if __name__ =="__main__":
     import tinytuya

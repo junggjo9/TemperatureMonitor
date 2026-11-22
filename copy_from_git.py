@@ -68,8 +68,8 @@ if __name__ == "__main__":
     
     for device in range(len(devices)):
         devices[device].load_local_db(args.dbFolder)
-        git_db = f"data_records/{device.name}.json"
-        tmp_json = f"{tmp_folder}/{device.name}.json"
+        git_db = f"data_records/{devices[device].name}.json"
+        tmp_json = f"{tmp_folder}/{devices[device].name}.json"
         for commit in all_commits_for_file(repo = git_repo,  
                                            file_path=git_db):
             with open(tmp_json, 'w') as f:
