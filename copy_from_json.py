@@ -27,11 +27,14 @@ if __name__ == "__main__":
 
     json_dev = loadSensorsFromJSON(args.deviceJSON)
 
-    for dev in json_dev:
-        dev.load_local_db("data_records/")
-        for sql in sqlite_dev:
-            if sql.tuya_id != dev.tuya_id: continue
-            copyFromJSONtoSqlite(json_dev = dev, sqlite_dev = sql)
+    for dev in range(len(json_dev)):
+        json_dev[dev].load_local_db("data_records/")
+        for sql in range(len(sqlite_dev)):
+            if sqlite_dev[sql].tuya_id != json_dev[dev].tuya_id: continue
+            copyFromJSONtoSqlite(json_dev = json_dev[dev], sqlite_dev = sqlite_dev[sql])
+            break
+        json_dev[dev] = None
+
 
 
 

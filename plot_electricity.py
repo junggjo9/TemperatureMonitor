@@ -13,7 +13,7 @@ def setupArgParser():
     from sync_database import setupArgParser as argParserBase
     parser = argParserBase()
     parser.add_argument("--outFolder", help="Folder where the output plots will be stored",
-                        default="./temperature_flat/")
+                        default="/var/www/html/temperature_flat/plots/")
     parser.add_argument("--variable", help="Name of the variable whose daily consumption & costs are stored",
                         default="add_ele")
     return parser

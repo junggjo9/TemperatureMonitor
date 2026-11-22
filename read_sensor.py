@@ -249,13 +249,15 @@ class DeviceData(object):
             earliest_entry = min(d_time /1000, earliest_entry)
             last_entry     = max(d_time / 1000, last_entry)
         
-        if nEntries > 1 and (datetime.fromtimestamp(earliest_entry) - start_time).seconds > 10:
-            sleep(25)
+        deltaS = (datetime.fromtimestamp(earliest_entry) - start_time).seconds
+        if nEntries > 1 and deltaS> 10:
+            sleep(15 + deltaS % 10)
             added+=self._download_data(cloud_stream = cloud_stream, 
                                        start_time = start_time, 
                                        end_time = datetime.fromtimestamp(earliest_entry - 1))
-        if nEntries > 1 and (end_time - datetime.fromtimestamp(last_entry)).seconds > 10:
-            sleep(25)
+        deltaS = (end_time - datetime.fromtimestamp(last_entry)).seconds 
+        if nEntries > 1 and deltaS > 10:
+            sleep(15 + deltaS % 10)
             added+=self._download_data(cloud_stream = cloud_stream, 
                                        start_time = datetime.fromtimestamp(last_entry+1), 
                                        end_time = end_time)

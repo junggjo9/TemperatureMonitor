@@ -226,3 +226,5 @@ tuya-raw.json
 sensor_data_history.json
 python_env/*
 *.db
+*.lock
+*.db-journal
