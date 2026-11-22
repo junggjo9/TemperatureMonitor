@@ -8,8 +8,8 @@ log_file="/var/www/html/temperature_flat/logs/json_${now}.log"
 echo ${log_file}
 git pull
 # exit
-# python read_sensor.py > ${log_file} 2>&1
-python read_sensorMT.py > ${log_file} 2>&1
+python read_sensor.py > ${log_file} 2>&1
+# python read_sensorMT.py > ${log_file} 2>&1
 
 result=$?
 if [ ${result} -ne 0 ];then
