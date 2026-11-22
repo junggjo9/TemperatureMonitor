@@ -293,7 +293,7 @@ def loadSensorsFromJSON(json_config, restrict=[]):
     devices = []
     nRestricted = 0
     if len(restrict) > 0:
-        logging.info("Only setup the devices {dev}".format(dev=",".join(restrict)))
+        logging.info("Only setup the devices {dev}".format(dev=", ".join(restrict)))
     with open('devices.json', 'r') as f:
          for entry in json.load(f):
             dev_name = entry['name']
@@ -343,7 +343,7 @@ if __name__ =="__main__":
     else:
         logging.debug(f"Search for databases from {args.dbFolder}")
 
-    devices = loadSensorsFromJSON(args.deviceJSON)
+    devices = loadSensorsFromJSON(args.deviceJSON, args.downloadOnly)
 
     try:
         cloud = tinytuya.Cloud()
