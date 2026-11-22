@@ -65,8 +65,9 @@ if __name__ == "__main__":
     tmp_folder = "/tmp/copy_device_log/"
     git_repo ="/home/user/TemperatureMonitoring/"
     system (f"mkdir -p {tmp_folder}")
-    for device in devices:
-        device.load_local_db(args.dbFolder)
+    
+    for device in range(len(devices)):
+        devices[device].load_local_db(args.dbFolder)
         git_db = f"data_records/{device.name}.json"
         tmp_json = f"{tmp_folder}/{device.name}.json"
         for commit in all_commits_for_file(repo = git_repo,  
@@ -75,16 +76,16 @@ if __name__ == "__main__":
                 json.dump(file_at_commit(repo = git_repo, 
                            commit = commit, 
                            file_path = git_db), f)
-            device.load_local_db(tmp_folder)
+            devices[device].load_local_db(tmp_folder)
             logging.info("Device {dev_name} has data from {start} until {end}".format(
-            dev_name = device.name, 
-            start = device.first_record_time.strftime('%d.%m.%y %H:%M'),
-            end = device.latest_record_time.strftime('%d.%m.%y %H:%M')))
+            dev_name = devices[device].name, 
+            start = devices[device].first_record_time.strftime('%d.%m.%y %H:%M'),
+            end = devices[device].latest_record_time.strftime('%d.%m.%y %H:%M')))
 
 
-        device.load_local_db(args.dbFolder)
-        device.update_db()
-        device = None
+        devices[device].load_local_db(args.dbFolder)
+        devices[device].update_db()
+        devices[device] = None
         
     system (f"rm -r {tmp_folder}")
     
