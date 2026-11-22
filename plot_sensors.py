@@ -1,6 +1,7 @@
 #/env/python
 from sync_database import setupSmartDevices
 from curve_analysis import fillAuxiliaryPoints, calcMeanObservable, periodBelowThreshold
+from dbConnection import QueryOrder, Order
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from os import system
@@ -216,14 +217,22 @@ if __name__== "__main__":
         for day in range((end_day - start_day).days +1):
             today = start_day + timedelta(days = day)
             summaryPlot = PlotContent(plot_path=f"{args.outFolder}/daily/{d_field.name}_{today.strftime('%y-%m-%d')}.pdf",
-                                  yLabel=yLabel, xDateFormat="%H:%M",
-                                  title= f"{args.curve} evolution in G503 - last update {now.strftime('%d.%m.%y %H:%M')}")
+                                      yLabel=yLabel, xDateFormat="%H:%M",
+                                      title= f"{args.curve} evolution in G503 - {today.strftime('%d.%m.%y')}")
+            ###
+            date = int(today.timestamp())
+
+            time_series = dev.sqlDB.fetchFromTable(tableName="average_values",
+                                                   columns=["lastUpdate"],
+                                                   conditions=[f"variable={d_field.id}",
+                                                                f"date={date}"],
+                                                   order = [], limit: = 1)
+            
             ### Do not recreate the figure
             if exists(summaryPlot.plotPath) and (now - today).days > 1 and not args.singleCurves:
                 logging.debug(f"Do not recreate plot for {d_field.name} recorded @ {today.strftime('%d.%m.%y')}")
                 continue
             
-            date = int(today.timestamp())
             logging.info(f"Check device records @ {today.strftime('%d.%m.%y')} ")
             for dev in devices:
                 figure_name=f"{args.outFolder}/daily/{dev.name}/{d_field.name}_{today.strftime('%d.%m.%y')}.pdf"

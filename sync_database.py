@@ -161,7 +161,7 @@ class SmartHomeDevice(object):
         end_time = datetime.now() 
         #### Start first with the most recent data
         downloaded = self._downloadData(cloud_stream = cloud_stream, 
-                                        start_time = end_time - timedelta(days=2), 
+                                        start_time = end_time - timedelta(days=1), 
                                         end_time = end_time)
         logging.info(f"Downloaded {downloaded} new data points")
         return downloaded
