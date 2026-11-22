@@ -148,8 +148,8 @@ class SmartHomeDevice(object):
 
     #### Query the data from the online logs
     def downloadFromCloud(self, 
-                          cloud_stream, 
-                          download_all = False):
+                          cloud_stream,
+                          chunk_size = 1000):
         logging.info("downloadFromCloud() - Device {dev_name} has data from {start} until {end}".format(
             dev_name = self.name, 
             start = self.earliestRecord.strftime('%d.%m.%y %H:%M'),
@@ -162,17 +162,18 @@ class SmartHomeDevice(object):
         #### Start first with the most recent data
         downloaded = self._downloadData(cloud_stream = cloud_stream, 
                                         start_time = end_time - timedelta(days=1), 
-                                        end_time = end_time)
+                                        end_time = end_time,
+                                        chunk_size = chunk_size)
         logging.info(f"Downloaded {downloaded} new data points")
         return downloaded
 
-    def _downloadData(self, cloud_stream, start_time, end_time):
+    def _downloadData(self, cloud_stream, start_time, end_time, chunk_size = 1000):
         logging.info("_downloadData() - Fetch new data from the cloud for sensor {name} for the time span from {start} unil {end}".format(
                       name = self.name, start = start_time.strftime('%d.%m.%y %H:%M'), 
                       end = end_time.strftime('%d.%m.%y %H:%M')))
         start_timestamp = int(start_time.timestamp())
         end_timestamp = int(end_time.timestamp())
-        result = cloud.getdevicelog(self.tuya_id, start_timestamp, end_timestamp, size=1000)
+        result = cloud.getdevicelog(self.tuya_id, start_timestamp, end_timestamp, size=chunk_size, evtype=7)
  
         if not result["success"] == True:
             logging.error(f"Failed to retrieve data from cloud {result}")
@@ -207,17 +208,22 @@ class SmartHomeDevice(object):
                                 record_time = datetime.fromtimestamp(d_time/ 1000), 
                                 value = d_value):
                 added+=1
-        if nEntries > 1 and (datetime.fromtimestamp(earliest_entry) - start_time).seconds > 10:
-            sleep(25)
+
+        logging.debug(f"_downloadData() - {nEntries} records span the period from {datetime.fromtimestamp(earliest_entry).strftime('%d.%m.%y %H:%M')} until {datetime.fromtimestamp(last_entry).strftime('%d.%m.%y %H:%M')}")
+
+        deltaS = (datetime.fromtimestamp(earliest_entry) - start_time).seconds
+        if nEntries > 1 and deltaS > 10:
+            sleep(15 + deltaS%15)
             added+=self._downloadData(cloud_stream = cloud_stream, 
                                        start_time = start_time, 
                                        end_time = datetime.fromtimestamp(earliest_entry - 1))
-        if nEntries > 1 and (end_time - datetime.fromtimestamp(last_entry)).seconds > 10:
-            sleep(25)
+
+        deltaS = (end_time - datetime.fromtimestamp(last_entry)).seconds
+        if nEntries > 1 and deltaS > 10:
+            sleep(15 + deltaS%15)
             added+=self._downloadData(cloud_stream = cloud_stream, 
                                        start_time = datetime.fromtimestamp(last_entry+1), 
                                        end_time = end_time)
-        logging.debug(f"Records span the period {datetime.fromtimestamp(earliest_entry).strftime('%d.%m.%y %H:%M')} until {datetime.fromtimestamp(last_entry).strftime('%d.%m.%y %H:%M')}")
 
         return added
 

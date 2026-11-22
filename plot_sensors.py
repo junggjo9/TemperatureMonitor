@@ -218,28 +218,23 @@ if __name__== "__main__":
             today = start_day + timedelta(days = day)
             summaryPlot = PlotContent(plot_path=f"{args.outFolder}/daily/{d_field.name}_{today.strftime('%y-%m-%d')}.pdf",
                                       yLabel=yLabel, xDateFormat="%H:%M",
-                                      title= f"{args.curve} evolution in G503 - {today.strftime('%d.%m.%y')}")
+                                      title= f"{args.curve} evolution in G503 - recorded @ {today.strftime('%d.%m.%y')}")
             ###
             date = int(today.timestamp())
-
-            time_series = dev.sqlDB.fetchFromTable(tableName="average_values",
-                                                   columns=["lastUpdate"],
-                                                   conditions=[f"variable={d_field.id}",
-                                                                f"date={date}"],
-                                                   order = [], limit: = 1)
+            ### Check whether the summary values have been updated recently
+            last_update = [ x[0] for x in dev.sqlDB.fetchFromTable(tableName="average_values",
+                                                              columns=["lastUpdate"],
+                                                              conditions=[f"variable={d_field.id}", f"date={date}"],
+                                                              order = [QueryOrder(column="lastUpdate", order = Order.DESC)], limit = 1)]
             
             ### Do not recreate the figure
-            if exists(summaryPlot.plotPath) and (now - today).days > 1 and not args.singleCurves:
+            if exists(summaryPlot.plotPath) and len(last_update) > 0 and (now - datetime.fromtimestamp(last_update[0])).days > 1:
                 logging.debug(f"Do not recreate plot for {d_field.name} recorded @ {today.strftime('%d.%m.%y')}")
                 continue
             
             logging.info(f"Check device records @ {today.strftime('%d.%m.%y')} ")
             for dev in devices:
                 figure_name=f"{args.outFolder}/daily/{dev.name}/{d_field.name}_{today.strftime('%d.%m.%y')}.pdf"
-                if args.singleCurves and exists(figure_name) and (now - today).days > 1 :
-                    logging.debug(f"Do not recreate plot {figure_name}")
-                    continue
-                
                 stored_avg = dev.sqlDB.fetchFromTable(tableName="average_values",
                                                         columns=["mean", "stdDev"] + (["alarmPeriod"] if args.curve == "temperature" else []),
                                                         conditions=[f"device={dev.device_id}",
@@ -261,11 +256,12 @@ if __name__== "__main__":
                                                 name = dev.name, mean=mean, stdDev=stdDev, unit=d_field.unit,
                                                 extra = f", too cold: {timedelta(seconds=coldTime)}" if coldTime is not None and coldTime > 60*60*2 else "" ) )
 
-                if args.singleCurves:
+                if args.singleCurves and (not exist(figure_name) or (now - today).days <=1):
                     deviceCurve = PlotContent(plot_path=figure_name, yLabel=yLabel, xDateFormat="%H:%M",
-                                          title="{label} evolution in G503 ({sensor_name})".format(
+                                          title="{label} evolution in G503 ({sensor_name})  - recorded @ {record_day}".format(
                                                     label = args.curve if len(d_field.label) == 0 else d_field.label,
-                                                    sensor_name = dev.name))
+                                                    sensor_name = dev.name,
+                                                    record_day = today.strftime('%d.%m.%y')))
                     deviceCurve.addHisto(dev_histo)
                     plots.append(deviceCurve)    
                 if not dev.name in args.excludeFromSummary: 

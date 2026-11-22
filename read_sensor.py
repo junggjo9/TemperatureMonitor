@@ -187,7 +187,7 @@ class DeviceData(object):
             return False
         data_time = datetime.fromtimestamp(time_stamp /1000)
         if log:
-            logging.info(f"Append data point recorded @{data_time.strftime("%d.%m.%y  %H:%M")} to {d_type} with {value}")
+            logging.info(f"Append data point recorded @{data_time.strftime("%d.%m.%y %H:%M")} to {d_type} with {value}")
         
         if self.__time_last.timestamp()* 1000 < time_stamp:
             self.__time_last = data_time
