@@ -57,6 +57,7 @@ class DeviceData(object):
                        sn: str,
                        prod_name: str,
                        icon: str,
+                       key: str,
                        mapping_data: dict):
         ### Name of the device as assigned by the App
         self.__name = name
@@ -68,6 +69,8 @@ class DeviceData(object):
         self.__uuid = uuid
         ### The serial number of the device
         self.__serial_number = sn
+        ### The authorization key
+        self.__key = key
         #### The product_name of the device
         self.__product_name = prod_name
         ### URL of the ICON
@@ -96,6 +99,10 @@ class DeviceData(object):
 
     def __del__(self): 
         if exists(self.__lock_file): system(f"rm {self.__lock_file}")
+    @property
+    def local_key(self): return self.__key
+    @property
+    def ip(self): return  deviceIP(self.mac_address) if len(self.mac_address) else "255.255.255.3"
     @property
     def empty(self): return self.__empty
     @property
@@ -310,12 +317,32 @@ def loadSensorsFromJSON(json_config, restrict=[]):
                                     sn = "",# entry["sn"],
                                     prod_name = entry["product_name"],
                                     icon = entry["icon"],
+                                    key = entry["key"],
                                     mapping_data = entry["mapping"])
             devices.append(newDevice)
     if nRestricted != len(restrict):
         logging.error(f"Only {nRestricted} out of the {len(restrict)} selected devices were found. please check input")
         exit(1)
     return devices
+
+def deviceIP(mac:str, 
+             leases = ["/var/lib/kea/kea-leases4.csv",
+                       "/var/lib/kea/kea-leases4.csv.2"]):
+    logging.debug(f"Look up IP assigned to '{mac}'")
+    for l_file in leases:
+        with open(l_file, 'r') as f:
+            for line in f:
+                tokens = line.split(",")
+                dev_ip= tokens[0]
+                dev_mac = tokens[1]
+                logging.debug(f"deviceIP() - IP {dev_ip} is assigned to MAC {dev_mac}")
+                if dev_mac == mac:
+                    return dev_ip
+    raise RuntimeError(f"Failed to find the IP address assigned to {mac}")
+
+def pingIP(ip):
+    return system(f"ping -c 1 {ip} > /dev/null 2>&1") ==0
+    
 
 def setupArgParser():
     from argparse import ArgumentParser
@@ -351,8 +378,22 @@ if __name__ =="__main__":
         logging.error(f"Failed to initialize cloud connection {e}")
         exit(1)
 
+
     for dev in range(len(devices)):
+       
         devices[dev].load_local_db(args.dbFolder)
-        if devices[dev].fetch_from_cloud(cloud) >0:
-            devices[dev].update_db()
+        logging.info(f" Try the tuya device API for {devices[dev].name}, {devices[dev].ip} {pingIP(devices[dev].ip)}, {pingIP('spiegel.de')}")
+        if not pingIP(devices[dev].ip):
+            continue
+        for version in [3.1, 3.2, 3.3, 3.4, 3.5]:
+            d = tinytuya.Device(
+                    dev_id=devices[dev].tuya_id,   # sub-device ID from wizard
+                    address=devices[dev].ip,           # gateway's IP
+                    local_key=devices[dev].local_key,
+                    version=version)
+            d.set_socketTimeout(5)
+            print(d.status(), version)
+        
+    #    if devices[dev].fetch_from_cloud(cloud) >0:
+    #        devices[dev].update_db()
         devices[dev] = None
