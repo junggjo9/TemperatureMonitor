@@ -4,7 +4,18 @@ from os.path import exists
 from os import system
 from datetime import datetime, timedelta
 from time import sleep
+import random
 import logging
+
+### Tuya cloud error codes, see https://developer.tuya.com/en/docs/iot/error-code?id=K989ruxx88swc
+TUYA_RETRY_CODES = {500,    # system error / API time out
+                    1110,   # concurrent request over limit
+                    1111,   # system is busy, please retry later
+                    1113,   # do not repeat the operation in a short time
+                    1199}   # your requests are too frequent
+TUYA_TOKEN_CODES = {1010,   # token is expired
+                    1011,   # token invalid
+                    1400}   # token invalid
 
 logging.basicConfig(format="%(asctime)s (%(levelname)s) : %(message)s",
                     datefmt="%Y-%m-%d %H:%M:%S",
@@ -114,7 +125,7 @@ class DeviceData(object):
     @property
     def mac_address(self): return self.__mac
     @property
-    def uuid(self): return self.__uid
+    def uuid(self): return self.__uuid
     @property
     def serial_number(self): return self.__serial_number
     @property
@@ -206,7 +217,7 @@ class DeviceData(object):
 
     #### Query the data from the online logs
     def fetch_from_cloud(self, cloud_stream, days = 14):
-        logging.info("Device {dev_name} has data from {start} until {end}".format(
+        logging.info("fetch_from_cloud() - Device {dev_name} has data from {start} until {end}".format(
             dev_name = self.name, 
             start = self.first_record_time.strftime('%d.%m.%y %H:%M'),
             end = self.latest_record_time.strftime('%d.%m.%y %H:%M')))
@@ -215,60 +226,104 @@ class DeviceData(object):
  
         #### Start first with the most recent data
         end_cursor = datetime.now()
+        if self.__empty:
+            # First run — fetch full history
+            start_cursor = end_cursor - timedelta(days=7)
+            logging.info(f"fetch_from_cloud() - No local data, fetching 14 days")
+        else:
+            # Incremental — only fetch since last known record
+            start_cursor = self.__time_last - timedelta(minutes = 10)
+            logging.info(f"fetch_from_cloud() - Incremental fetch from {start_cursor.strftime('%d.%m.%y %H:%M')}")
+        
         downloaded = self._download_data(cloud_stream = cloud_stream, 
-                                          start_time = end_cursor - timedelta(days=days), 
+                                          start_time = start_cursor, 
                                           end_time = end_cursor)
         logging.info(f"Loaded {downloaded} new entries from cloud.")
         return downloaded
 
-    def _download_data(self, cloud_stream, start_time, end_time, chunk_size = 1000):
+    @staticmethod
+    def _cloud_error_code(result):
+        """Returns None if the cloud request succeeded, otherwise the Tuya error code
+           (-1 if tinytuya itself failed, e.g. the token could not be renewed)."""
+        if not isinstance(result, dict):
+            return -1
+        if result.get("success") == True and "result" in result:
+            return None
+        try:
+            return int(result.get("code", -1))
+        except (TypeError, ValueError):
+            return -1
 
-        logging.info("Fetch new data from the cloud for sensor {name} for the time span from {start} unil {end}".format(
+    def _download_data(self, cloud_stream, start_time, end_time, page_size = 100,
+                       max_retries = 60, base_delay = 1., max_delay = 60.):
+
+        logging.info("Fetch new data from the cloud for sensor {name} for the time span from {start} until {end}".format(
                 name = self.name, start = start_time.strftime('%d.%m.%y %H:%M'), 
                 end = end_time.strftime('%d.%m.%y %H:%M')))
         start_timestamp = int(start_time.timestamp())
         end_timestamp = int(end_time.timestamp())
-        result = cloud.getdevicelog(self.tuya_id, start_timestamp, end_timestamp, 
-                                    size=chunk_size, evtype=7)
- 
-        if not result["success"] == True:
-            logging.warning(f"Failed to retrieve data from cloud {result}")
-            return 0
-        logs = result['result']["logs"]
-        nEntries = len(logs)
-        logging.debug(f"Fetched {nEntries} entries from the database")
+
         added = 0
+        n_pages = 0
+        row_key = None
+        retries = 0
+        token_renewed = False
         last_entry = 0
         earliest_entry = datetime.now().timestamp()
-        for entry in logs:
-            if not "code" in entry.keys():
-                continue
-            d_type = entry["code"]
-            d_time = int(entry["event_time"])
-            d_status = int(entry["status"])
-            if d_status != 1:
-                logging.warning(f"Skip data point {entry}")
-                continue
+        while True:
+            ### Fetch exactly one page per call, such that the error code of every page
+            ### is visible. Without max_fetches = 1 tinytuya stops silently on a failed page.
+            result = cloud_stream.getdevicelog(self.tuya_id, start_timestamp, end_timestamp, 
+                                               evtype=7, size=page_size, max_fetches=1,
+                                               start_row_key=row_key)
+            err_code = self._cloud_error_code(result)
+            if err_code is not None:
+                if err_code in TUYA_TOKEN_CODES and not token_renewed:
+                    ### tinytuya only renews on 'token invalid', not on 1010 'token is expired'
+                    logging.info(f"Cloud token expired/invalid ({err_code}), renew it")
+                    token_renewed = True
+                    cloud_stream.token = None
+                    cloud_stream._gettoken()
+                    continue
+                if err_code in TUYA_RETRY_CODES and retries < max_retries:
+                    ### Exponential back off with jitter. Only wait if the cloud asks for it
+                    delay = min(max_delay, base_delay * 2**retries) * random.uniform(1., 1.5)
+                    retries += 1
+                    logging.info(f"Cloud busy / rate limited ({err_code}). Retry {retries}/{max_retries} in {delay:.1f}s")
+                    sleep(delay)
+                    continue
+                logging.warning(f"Failed to retrieve data from cloud after {n_pages} pages: {result}")
+                break
+            retries = 0
+            token_renewed = False
+            n_pages += 1
 
-            d_value = entry["value"]
-            if self._append_point(d_type, d_time, d_value, log = True):
-               added+=1
-            earliest_entry = min(d_time /1000, earliest_entry)
-            last_entry     = max(d_time / 1000, last_entry)
-        
-        deltaS = (datetime.fromtimestamp(earliest_entry) - start_time).seconds
-        if nEntries > 1 and deltaS> 10:
-            sleep(15 + deltaS % 10)
-            added+=self._download_data(cloud_stream = cloud_stream, 
-                                       start_time = start_time, 
-                                       end_time = datetime.fromtimestamp(earliest_entry - 1))
-        deltaS = (end_time - datetime.fromtimestamp(last_entry)).seconds 
-        if nEntries > 1 and deltaS > 10:
-            sleep(15 + deltaS % 10)
-            added+=self._download_data(cloud_stream = cloud_stream, 
-                                       start_time = datetime.fromtimestamp(last_entry+1), 
-                                       end_time = end_time)
-        logging.debug(f"Records span the period {datetime.fromtimestamp(earliest_entry).strftime('%d.%m.%y %H:%M')} until {datetime.fromtimestamp(last_entry).strftime('%d.%m.%y %H:%M')}")
+            page = result["result"]
+            logs = page.get("logs", [])
+            logging.debug(f"Fetched {len(logs)} entries from the database (page {n_pages})")
+            for entry in logs:
+                if not "code" in entry.keys():
+                    continue
+                d_type = entry["code"]
+                d_time = int(entry["event_time"])
+                d_status = int(entry["status"])
+                if d_status != 1:
+                    logging.warning(f"Skip data point {entry}")
+                    continue
+
+                d_value = entry["value"]
+                if self._append_point(d_type, d_time, d_value, log = True):
+                   added+=1
+                earliest_entry = min(d_time /1000, earliest_entry)
+                last_entry     = max(d_time / 1000, last_entry)
+
+            next_key = page.get("next_row_key")
+            if not page.get("has_next") or not next_key or next_key == row_key:
+                break
+            row_key = next_key
+
+        if last_entry > 0:
+            logging.debug(f"Records span the period {datetime.fromtimestamp(earliest_entry).strftime('%d.%m.%y %H:%M')} until {datetime.fromtimestamp(last_entry).strftime('%d.%m.%y %H:%M')}")
         return added
 
 
@@ -301,7 +356,7 @@ def loadSensorsFromJSON(json_config, restrict=[]):
     nRestricted = 0
     if len(restrict) > 0:
         logging.info("Only setup the devices {dev}".format(dev=", ".join(restrict)))
-    with open('devices.json', 'r') as f:
+    with open(json_config, 'r') as f:
          for entry in json.load(f):
             dev_name = entry['name']
             if len(restrict) > 0:
@@ -378,22 +433,10 @@ if __name__ =="__main__":
         logging.error(f"Failed to initialize cloud connection {e}")
         exit(1)
 
-
+    now = datetime.now()
     for dev in range(len(devices)):
-       
         devices[dev].load_local_db(args.dbFolder)
-        logging.info(f" Try the tuya device API for {devices[dev].name}, {devices[dev].ip} {pingIP(devices[dev].ip)}, {pingIP('spiegel.de')}")
-        if not pingIP(devices[dev].ip):
-            continue
-        for version in [3.1, 3.2, 3.3, 3.4, 3.5]:
-            d = tinytuya.Device(
-                    dev_id=devices[dev].tuya_id,   # sub-device ID from wizard
-                    address=devices[dev].ip,           # gateway's IP
-                    local_key=devices[dev].local_key,
-                    version=version)
-            d.set_socketTimeout(5)
-            print(d.status(), version)
-        
-    #    if devices[dev].fetch_from_cloud(cloud) >0:
-    #        devices[dev].update_db()
+        logging.info(f" Try the tuya device API for {devices[dev].name}, IP: {devices[dev].ip} PING: {pingIP(devices[dev].ip)}, Internet: {pingIP('spiegel.de')}")
+        if (now - devices[dev].latest_record_time).seconds > 30 * 60 and devices[dev].fetch_from_cloud(cloud) >0 :
+            devices[dev].update_db()
         devices[dev] = None
