@@ -142,11 +142,12 @@ class DeviceData(object):
     def data_payload(self, 
                      field: DataFormat,
                      earliest = datetime.fromtimestamp(0),
-                     latest = datetime.now(),
+                     latest = None,
                      calibrator = None):
         if len([0 for x in self.data_fields if field.name == x.name]) == 0:
             logging.warning(f"Data field {field} is unknown")
             return []
+        if latest is None: latest = datetime.now()
         if not calibrator:
             calibrator = lambda x: x
         values = [ (datetime.fromtimestamp(stamp / 1000), calibrator(value)) \
@@ -228,8 +229,8 @@ class DeviceData(object):
         end_cursor = datetime.now()
         if self.__empty:
             # First run — fetch full history
-            start_cursor = end_cursor - timedelta(days=7)
-            logging.info(f"fetch_from_cloud() - No local data, fetching 14 days")
+            start_cursor = end_cursor - timedelta(days=days)
+            logging.info(f"fetch_from_cloud() - No local data, fetching {days} days")
         else:
             # Incremental — only fetch since last known record
             start_cursor = self.__time_last - timedelta(minutes = 10)
@@ -437,6 +438,6 @@ if __name__ =="__main__":
     for dev in range(len(devices)):
         devices[dev].load_local_db(args.dbFolder)
         logging.info(f" Try the tuya device API for {devices[dev].name}, IP: {devices[dev].ip} PING: {pingIP(devices[dev].ip)}, Internet: {pingIP('spiegel.de')}")
-        if (now - devices[dev].latest_record_time).seconds > 30 * 60 and devices[dev].fetch_from_cloud(cloud) >0 :
+        if (now - devices[dev].latest_record_time).total_seconds() > 30 * 60 and devices[dev].fetch_from_cloud(cloud) >0 :
             devices[dev].update_db()
         devices[dev] = None

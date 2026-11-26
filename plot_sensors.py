@@ -256,7 +256,7 @@ if __name__== "__main__":
                                                 name = dev.name, mean=mean, stdDev=stdDev, unit=d_field.unit,
                                                 extra = f", too cold: {timedelta(seconds=coldTime)}" if coldTime is not None and coldTime > 60*60*2 else "" ) )
 
-                if args.singleCurves and (not exist(figure_name) or (now - today).days <=1):
+                if args.singleCurves and (not exists(figure_name) or (now - today).days <=1):
                     deviceCurve = PlotContent(plot_path=figure_name, yLabel=yLabel, xDateFormat="%H:%M",
                                           title="{label} evolution in G503 ({sensor_name})  - recorded @ {record_day}".format(
                                                     label = args.curve if len(d_field.label) == 0 else d_field.label,
