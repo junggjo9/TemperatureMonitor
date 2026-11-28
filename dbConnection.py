@@ -279,3 +279,25 @@ class DbConnection(object):
             cursor = self.instance.cursor()
             cursor.execute(query)
             self.instance.commit()
+
+    def addTableColumn(self,
+                       tableName: str,
+                       columns: list):
+        #### Check that the table is known
+        for append_me in columns:
+            if len([0 for  known_col in self.tableInfo(tableName=tableName) 
+                    if known_col.column_name == append_me.column_name ]) > 0:
+                logging.warning("addTableColumn() - The {tableName} already contains `{append_me}`, known columns:{tableContent}".format(
+                            tableName=tableName, append_me = append_me, 
+                            tableContent = "\n\t\t ** ".join([""]+[f"{c}" for c in self.tableInfo(tableName=tableName) ])))
+                continue
+            query = f"ALTER table '{tableName}' ADD COLUMN {append_me}"
+            logging.debug(f"addTableColumn() - Execute query: `{query}`")
+            with self.__lock_guard:
+                cursor = self.instance.cursor()
+                cursor.execute(query)
+                self.instance.commit()
+            self.__tables[tableName].append(append_me)
+           
+
+    
