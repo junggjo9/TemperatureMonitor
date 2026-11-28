@@ -230,10 +230,24 @@ class SmartHomeDevice(object):
 def setupSmartDevices(db_file: str, device_json: str = ""):
     dbObj = Database(db_file)
     devices = []
+
+ 
+    if False and dbObj.addTableColumn(tableName = "record_variables",
+                                      columns = [ColumnDef(name="dict_key", d_type = DataTypes.TEXT_TYPE, notNull=False)]) > 0:
+        logging.info("Verkackt")
+    if False and dbObj.addTableColumn(tableName = "devices",
+                columns = [ColumnDef(name="parent_id", d_type= DataTypes.TEXT_TYPE, notNull = False),
+                            ColumnDef(name="node_id", d_type = DataTypes.TEXT_TYPE, notNull = False),
+                            ColumnDef(name="api_version", d_type = DataTypes.INT_TYPE, notNull = False)
+                ]) > 0:
+        logging.info("Koeniglich verkackt")
+    
+    
     for dev_id in dbObj.loadDevices(device_json):
         devices.append(SmartHomeDevice( db = dbObj, device_id = dev_id))
- 
     
+    
+
     ### Floating point values with one digit precision
     dbObj.defineConversion("va_temperature" , 0.1)
     dbObj.defineConversion("cur_voltage" , 0.1)
