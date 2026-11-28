@@ -7,6 +7,10 @@ from time import sleep
 import random
 import logging
 
+logging.basicConfig(format="%(asctime)s (%(levelname)s) : %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                    level=logging.INFO)
+                    
 ### Tuya cloud error codes, see https://developer.tuya.com/en/docs/iot/error-code?id=K989ruxx88swc
 TUYA_RETRY_CODES = {500,    # system error / API time out
                     1110,   # concurrent request over limit
@@ -17,9 +21,7 @@ TUYA_TOKEN_CODES = {1010,   # token is expired
                     1011,   # token invalid
                     1400}   # token invalid
 
-logging.basicConfig(format="%(asctime)s (%(levelname)s) : %(message)s",
-                    datefmt="%Y-%m-%d %H:%M:%S",
-                    level=logging.INFO)
+
 
 
 class DataFormat(object):
