@@ -1,6 +1,7 @@
 #/env/python
 from enum import Enum
 from time import sleep
+import threading
 from datetime import datetime, timedelta
 from os.path import exists, isdir
 from os import system
@@ -117,6 +118,8 @@ class DbConnection(object):
         self.__db = sqlite3.connect(self.__path)
         ### Internal dictionary to cache which tables are held
         self.__tables = {}
+        ##### Internal thread lock
+        self.__lock_guard = threading.Lock()
         self._loadTableInfo()
 
     def __del__(self):
@@ -151,7 +154,6 @@ class DbConnection(object):
                 else: raise RuntimeError(f"Column '{column_name}' has an unknown data type '{column_def[1]}'")
                 self.__tables[table_name].append(ColumnDef(name = column_name, d_type = d_type, 
                                                            primary=primary, notNull = notNull))
-
     @property 
     def path(self): return self.__path
     @property
@@ -168,8 +170,10 @@ class DbConnection(object):
         query="CREATE TABLE {tableName} ({columns})".format(tableName=tableName,
                     columns=", ".join([f"{c}" for c in columns]))
         logging.debug(f"createTable() - Execute {query}")
-        self.instance.execute(query)
-        self.__tables[tableName] = columns
+        with self.__lock_guard: 
+            self.instance.execute(query)
+            self.__tables[tableName] = columns
+
     def tableInfo(self, tableName: str):
         if tableName not in self.__tables.keys():
             raise RuntimeError(f"tableInfo() - The table {tableName} does not exist")
@@ -216,9 +220,10 @@ class DbConnection(object):
                 cols = ", ".join([f"'{c}'" for c in columns]),
                 values=value_str)
         logging.debug(query)
-        cursor = self.instance.cursor()
-        cursor.execute(query)
-        self.instance.commit()
+        with self.__lock_guard: 
+            cursor = self.instance.cursor()
+            cursor.execute(query)
+            self.instance.commit()
         primary = self.primaryKey(tableName)
         return self.fetchFromTable(tableName = tableName,
                                    columns = [primary.column_name],
@@ -242,9 +247,12 @@ class DbConnection(object):
        
         query = f"SELECT {cols} FROM {tableName} {sel} {sort} {range_str}"
         logging.debug(f"fetchFromTable() - Execute `{query}`")
-        cursor = self.instance.cursor()
-        cursor.execute(query)
-        return cursor.fetchall()
+        with self.__lock_guard:
+            cursor = self.instance.cursor()
+            cursor.execute(query)
+            result = cursor.fetchall()
+
+        return result
     #### Update an entry from the table
     def updateRecord(self, tableName: str,
                            columns: tuple,
@@ -267,6 +275,7 @@ class DbConnection(object):
 
         query = f"UPDATE {tableName} SET {value_str} WHERE \"{self.primaryKey(tableName).column_name}\"='{entry_id}'"
         logging.debug(f"updateRecord() - Execute {query}")
-        cursor = self.instance.cursor()
-        cursor.execute(query)
-        self.instance.commit()
+        with self.__lock_guard:
+            cursor = self.instance.cursor()
+            cursor.execute(query)
+            self.instance.commit()
