@@ -284,6 +284,7 @@ class DbConnection(object):
                        tableName: str,
                        columns: list):
         #### Check that the table is known
+        added = 0
         for append_me in columns:
             if len([0 for  known_col in self.tableInfo(tableName=tableName) 
                     if known_col.column_name == append_me.column_name ]) > 0:
@@ -298,6 +299,5 @@ class DbConnection(object):
                 cursor.execute(query)
                 self.instance.commit()
             self.__tables[tableName].append(append_me)
-           
-
-    
+            added+=1
+    return added
