@@ -86,6 +86,9 @@ class Database(object):
         ### uuid: Universal unique identifier
         ### icon: The url to show the icon
         ### battery_state: The current state of the device battery
+        ### parent_id: The tuya id of the parent device if there is any
+        ### node_id: The identifier of the node (Defned together with the parent_id)
+        ### api_version: Which is the local api version to be used
         if "devices" not in self.sqlDB.tableNames:
             self.sqlDB.createTable("devices",             
                 [ColumnDef(name="id", d_type = DataTypes.INT_TYPE, primary=True),
@@ -96,9 +99,13 @@ class Database(object):
                  ColumnDef(name="tuya_key", d_type = DataTypes.TEXT_TYPE, notNull= True),
                  ColumnDef(name="product_name", d_type = DataTypes.TEXT_TYPE, notNull=True),
                  ColumnDef(name="icon", d_type = DataTypes.TEXT_TYPE, notNull=False),
-                 ColumnDef(name="battery_state", d_type = DataTypes.INT_TYPE, notNull = False)])
+                 ColumnDef(name="battery_state", d_type = DataTypes.INT_TYPE, notNull = False),
+                 ColumnDef(name="parent_id", d_type= DataTypes.TEXT_TYPE, notNull = False),
+                 ColumnDef(name="node_id", d_type = DataTypes.TEXT_TYPE, notNull = False),
+                 ColumnDef(name="api_version", d_type = DataTypes.INT_TYPE, notNull = False)])
         #### Table to store the variables held by a sensor
         #### id: The number of the entry within the table
+        #### dict_key: The key in the dictionary recieved from the direct read out
         #### name: Name of the variable 
         #### type: Data type of the variable
         #### unit: In which units is the variable given
@@ -108,14 +115,15 @@ class Database(object):
         if "record_variables" not in self.sqlDB.tableNames:
             self.sqlDB.createTable("record_variables",             
             [ColumnDef(name="id", d_type = DataTypes.INT_TYPE, primary=True),
-            ColumnDef(name="name", d_type = DataTypes.TEXT_TYPE, notNull=True),
-            ColumnDef(name="label", d_type = DataTypes.TEXT_TYPE, notNull=False),
-            ColumnDef(name="type", d_type = DataTypes.TEXT_TYPE, notNull=True),
-            ColumnDef(name="unit", d_type = DataTypes.TEXT_TYPE, notNull=False),
-            ColumnDef(name="min", d_type = DataTypes.REAL_TYPE, notNull=False),
-            ColumnDef(name="max", d_type = DataTypes.REAL_TYPE, notNull=False),
-            ColumnDef(name="conversion", d_type= DataTypes.REAL_TYPE, notNull=False),
-            ColumnDef(name="discrete", d_type = DataTypes.TEXT_TYPE, notNull= False)])
+             ColumnDef(name="dict_key", d_type = DataTypes.TEXT_TYPE, notNull=False),
+             ColumnDef(name="name", d_type = DataTypes.TEXT_TYPE, notNull=True),
+             ColumnDef(name="label", d_type = DataTypes.TEXT_TYPE, notNull=False),
+             ColumnDef(name="type", d_type = DataTypes.TEXT_TYPE, notNull=True),
+             ColumnDef(name="unit", d_type = DataTypes.TEXT_TYPE, notNull=False),
+             ColumnDef(name="min", d_type = DataTypes.REAL_TYPE, notNull=False),
+             ColumnDef(name="max", d_type = DataTypes.REAL_TYPE, notNull=False),
+             ColumnDef(name="conversion", d_type= DataTypes.REAL_TYPE, notNull=False),
+             ColumnDef(name="discrete", d_type = DataTypes.TEXT_TYPE, notNull= False)])
         #### Actual data held by the device
         # data_records - id, variable, device, value, record_time, insert_time
         ### id: The number of the entry within the table
@@ -262,6 +270,12 @@ class Database(object):
             if len(entry["mac"]) > 0: 
                 new_record+=[entry["mac"]]
                 columns+=["mac_address"]
+            if "parent" in entry.keys():
+                new_record+=[entry["parent"]]
+                columns+=["parent_id"]
+            if "node_id" in entry.keys():
+                new_record+=[entry["node_id"]]
+                columns+=["node_id"]
             ### use the new record to define the mappings
             self._check_record_variables(device = self.sqlDB.insertRecord(tableName="devices",
                                                                          columns= columns,
@@ -273,7 +287,7 @@ class Database(object):
 
     def _check_record_variables(self, device, mapping):
         ### First check whether the record type is in the database
-        for _, variable in mapping.items():
+        for key, variable in mapping.items():
             record_name = variable["code"]
             d_type = variable["type"]
             n_records = len(self.sqlDB.fetchFromTable(tableName = "record_variables",
@@ -285,8 +299,8 @@ class Database(object):
             if n_records > 0:
                 logging.debug(f"_check_record_variables() - The record {record_name} is already in the database")
                 continue  
-            new_record = [record_name, d_type]
-            columns = ["name", "type"]
+            new_record = [record_name, d_type, key]
+            columns = ["name", "type", "dict_key"]
             if isinstance(variable["values"], dict):     
                 for x in ["unit", "min", "max"]:
                     if x in variable["values"].keys():
@@ -324,8 +338,8 @@ class Database(object):
         
         conditions = [" OR ".join([f"{self.sqlDB.primaryKey('record_variables').column_name}={id}" for id in variable_ids])] if len(variable_ids) else []
         variable_record = self.sqlDB.fetchFromTable(tableName="record_variables",
-                                                  columns=["id", "name", "type", "unit", "min", "max", "discrete", "conversion", "label"],
-                                                  conditions=conditions)
+                                                    columns=["id", "name", "type", "unit", "min", "max", "discrete", "conversion", "label"],
+                                                    conditions=conditions)
         if len(variable_ids) > 0 and len(variable_record) != len(variable_ids):
             raise RuntimeError("SmartHomeDevice() - Cannot retrieve the associated variables")  
         variables = []
@@ -353,16 +367,22 @@ class Database(object):
 
 if __name__ == "__main__":
     from os import system
-    #system("rm test.db")
+    # system("rm test.db")
     test_db = Database("test.db")
     test_db.loadDevices()
 
-
+    test_db.sqlDB.addTableColumn(tableName="average_values",
+                        columns=[ColumnDef(name="dieCASSY", d_type = DataTypes.INT_TYPE, notNull=True)])
+    
     test_time = datetime.now() - timedelta(hours=2)
     test_db.insertDataRecord(device = 1, 
                              variable = 2, 
                              record_time = test_time,
                              value=666.)
+    test_db.sqlDB.addTableColumn(tableName="average_values",
+                        columns=[ColumnDef(name="wantspetted", d_type = DataTypes.INT_TYPE, notNull=False)])
+    
+    exit(0)
     sleep(10)
     test_db.insertDataRecord(device = 1, 
                              variable = 2, 
